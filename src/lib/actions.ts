@@ -1,9 +1,10 @@
+
 "use server";
 
 import { z } from "zod";
 import { auth, db } from "@/lib/firebase/firebase";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as firebaseSignOut } from "firebase/auth";
-import { doc, setDoc, getDoc, serverTimestamp, collection, getDocs, query, limit } from "firebase/firestore";
+import { doc, setDoc, getDoc, serverTimestamp, collection, getDocs, query, limit, updateDoc } from "firebase/firestore";
 import type { UserProfile } from "@/types";
 import { revalidatePath } from "next/cache";
 
@@ -74,7 +75,22 @@ export async function loginUser(values: z.infer<typeof loginSchema>) {
         return { success: false, message: "User profile not found." };
       }
   
-      const userProfile = userDoc.data() as UserProfile;
+      let userProfile = userDoc.data() as UserProfile;
+
+      // Check if this is the only user and they are pending. If so, make them an admin.
+      const usersCollection = collection(db, 'users');
+      const q = query(usersCollection);
+      const snapshot = await getDocs(q);
+
+      if (snapshot.size === 1 && userProfile.status === 'pending') {
+        await updateDoc(userDocRef, {
+          status: 'approved',
+          role: 'admin',
+        });
+        // refetch the profile
+        const updatedUserDoc = await getDoc(userDocRef);
+        userProfile = updatedUserDoc.data() as UserProfile;
+      }
   
       if (userProfile.status !== 'approved') {
         await firebaseSignOut(auth);
