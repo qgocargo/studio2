@@ -61,6 +61,7 @@ export default function RegisterPage() {
         description: result.message,
         variant: "destructive",
       });
+      setIsRegistrationComplete(false);
     }
   }
   
