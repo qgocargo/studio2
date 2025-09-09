@@ -17,36 +17,26 @@ import {
   Calendar,
   Users,
   FileText,
-  PanelLeft,
   Settings,
 } from "lucide-react";
-import { useAuth } from "@/hooks/use-auth";
 import { Logo } from "@/components/logo";
-import { Button } from "../ui/button";
 
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/inventory", label: "Inventory", icon: Package, roles: ['admin'] },
-  { href: "/scheduling", label: "Scheduling", icon: Calendar, roles: ['admin', 'supervisor'] },
-  { href: "/reports", label: "Reports", icon: FileText, roles: ['admin'] },
-  { href: "/admin/crew", label: "Crew", icon: Users, roles: ['admin', 'supervisor'] }
+  { href: "/inventory", label: "Inventory", icon: Package },
+  { href: "/scheduling", label: "Scheduling", icon: Calendar },
+  { href: "/reports", label: "Reports", icon: FileText },
+  { href: "/admin/crew", label: "Crew", icon: Users },
+  { href: "/admin/pending-users", label: "Admin", icon: Settings },
 ];
 
 export default function AppSidebar() {
   const pathname = usePathname();
-  const { isAdmin, isSupervisor } = useAuth();
 
   const isMenuItemActive = (href: string) => {
     if (href === '/dashboard') return pathname === href;
     return pathname.startsWith(href);
   };
-  
-  const userHasAccess = (roles?: string[]) => {
-    if (!roles) return true; // Public item
-    if (isAdmin) return true; // Admin sees all
-    if (isSupervisor && roles.includes('supervisor')) return true;
-    return false;
-  }
 
   return (
     <Sidebar collapsible="icon" side="left" variant="sidebar">
@@ -61,7 +51,7 @@ export default function AppSidebar() {
       </SidebarHeader>
       <SidebarContent className="p-2">
         <SidebarMenu>
-          {menuItems.filter(item => userHasAccess(item.roles)).map((item) => (
+          {menuItems.map((item) => (
             <SidebarMenuItem key={item.href}>
               <Link href={item.href} passHref>
                 <SidebarMenuButton
@@ -75,20 +65,6 @@ export default function AppSidebar() {
               </Link>
             </SidebarMenuItem>
           ))}
-          {isAdmin && (
-             <SidebarMenuItem>
-                <Link href="/admin/pending-users" passHref>
-                    <SidebarMenuButton
-                    isActive={isMenuItemActive('/admin/pending-users')}
-                    tooltip="Admin"
-                    className="justify-start bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-red-400 hover:bg-destructive/20 dark:hover:bg-destructive/30"
-                    >
-                    <Settings className="h-5 w-5" />
-                    <span>Admin</span>
-                    </SidebarMenuButton>
-                </Link>
-            </SidebarMenuItem>
-          )}
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="p-2 border-t">
