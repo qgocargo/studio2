@@ -1,32 +1,49 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Helper function to check user role
-    function getRole(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.role;
+
+    // Helper function to check if the user is an admin
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Helper function to check if the user is a supervisor
+    function isSupervisor() {
+        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'supervisor'];
     }
 
     match /users/{userId} {
-      allow read, update: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null;
-      allow list: if request.auth != null && getRole(request.auth.uid) == 'admin';
+      // Allow user to read their own profile
+      allow read: if request.auth.uid == userId;
+      
+      // Allow user to create their own profile document during sign up
+      allow create: if request.auth.uid == userId;
+
+      // Allow admin to read/write any user document
+      allow read, write: if isAdmin();
+
+      // Allow anybody to list users, but only for checking if it's the first user during registration
+      allow list: if request.auth != null;
     }
 
     match /crew/{crewId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && (getRole(request.auth.uid) == 'admin' || getRole(request.auth.uid) == 'supervisor');
+        // Admins and supervisors can manage the crew
+        allow read, write, create, delete: if isSupervisor();
     }
-
+    
     match /inventory/{itemId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && getRole(request.auth.uid) == 'admin';
+        // Only admins can manage inventory
+        allow read, write, create, delete: if isAdmin();
     }
 
     match /jobs/{jobId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && (getRole(request.auth.uid) == 'admin' || getRole(request.auth.uid) == 'supervisor');
+        // Admins and supervisors can manage jobs
+        allow read, write, create, delete: if isSupervisor();
+    }
+
+    // Default deny all other reads/writes
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
