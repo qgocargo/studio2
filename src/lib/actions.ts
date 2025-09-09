@@ -3,7 +3,7 @@
 
 import { z } from "zod";
 import { auth, db } from "@/lib/firebase/firebase";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as firebaseSignOut } from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as firebaseSignOut, sendPasswordResetEmail as firebaseSendPasswordResetEmail } from "firebase/auth";
 import { doc, setDoc, getDoc, serverTimestamp, collection, getDocs, query, limit, updateDoc, where } from "firebase/firestore";
 import type { UserProfile } from "@/types";
 import { revalidatePath } from "next/cache";
@@ -39,7 +39,7 @@ export async function registerUser(values: z.infer<typeof registerSchema>) {
     await setDoc(doc(db, "users", user.uid), userProfile);
     
     const message = isFirstUser 
-      ? "Registration successful! You have been registered as the first admin user."
+      ? "Registration successful! You are the admin."
       : "Registration successful! Your account is pending approval.";
     
     return { success: true, message };
@@ -80,8 +80,8 @@ export async function loginUser(values: z.infer<typeof loginSchema>) {
       // Special check: If there's only one user in the DB and their status is pending,
       // it must be the first user. Let's make them an admin.
       const usersCollection = collection(db, 'users');
-      const allUsersQuery = query(usersCollection);
-      const allUsersSnapshot = await getDocs(allUsersQuery);
+      const q = query(collection(db, "users"));
+      const allUsersSnapshot = await getDocs(q);
 
       if (allUsersSnapshot.size === 1 && userProfile.status === 'pending') {
         await updateDoc(userDocRef, {
@@ -125,5 +125,23 @@ export async function signOut() {
         return { success: true, message: "Signed out successfully." };
     } catch (error: any) {
         return { success: false, message: error.message || "Failed to sign out." };
+    }
+}
+
+const forgotPasswordSchema = z.object({
+    email: z.string().email("Invalid email address"),
+});
+
+export async function sendPasswordResetEmail(values: z.infer<typeof forgotPasswordSchema>) {
+    try {
+        const validated = forgotPasswordSchema.parse(values);
+        await firebaseSendPasswordResetEmail(auth, validated.email);
+        return { success: true, message: "Password reset email sent. Please check your inbox." };
+    } catch (error: any) {
+        if (error.code === 'auth/user-not-found') {
+            // To prevent email enumeration, we don't reveal if the user exists.
+            return { success: true, message: "Password reset email sent. Please check your inbox." };
+        }
+        return { success: false, message: error.message || "Failed to send reset email." };
     }
 }

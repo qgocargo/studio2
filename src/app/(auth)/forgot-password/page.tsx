@@ -4,11 +4,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import { loginUser } from "@/lib/actions";
+import { sendPasswordResetEmail } from "@/lib/actions";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -27,30 +26,27 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email." }),
-  password: z.string().min(1, { message: "Password is required." }),
 });
 
-export default function LoginPage() {
-  const router = useRouter();
+export default function ForgotPasswordPage() {
   const { toast } = useToast();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
-      password: "",
     },
   });
 
-  const { isSubmitting } = form.formState;
+  const { isSubmitting, isSubmitSuccessful } = form.formState;
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    const result = await loginUser(values);
+    const result = await sendPasswordResetEmail(values);
     if (result.success) {
-      toast({ title: "Success", description: result.message });
-      router.push("/dashboard");
+      toast({ title: "Email Sent", description: result.message });
     } else {
       toast({
         title: "Error",
@@ -59,16 +55,35 @@ export default function LoginPage() {
       });
     }
   }
+  
+  if (isSubmitSuccessful) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Check Your Email</CardTitle>
+                <CardDescription>A password reset link has been sent to your email address.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <p>Please follow the instructions in the email to reset your password.</p>
+            </CardContent>
+            <CardFooter>
+                <Link href="/login" className={cn(buttonVariants({variant: 'default', className: 'w-full'}))}>
+                    Back to Login
+                </Link>
+            </CardFooter>
+        </Card>
+    )
+  }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Welcome Back</CardTitle>
-        <CardDescription>Enter your credentials to access your account.</CardDescription>
+        <CardTitle>Forgot Password?</CardTitle>
+        <CardDescription>Enter your email and we&apos;ll send you a link to reset your password.</CardDescription>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
-          <CardContent className="space-y-4">
+          <CardContent>
             <FormField
               control={form.control}
               name="email"
@@ -82,37 +97,16 @@ export default function LoginPage() {
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                    <div className="flex items-center justify-between">
-                        <FormLabel>Password</FormLabel>
-                        <Link
-                            href="/forgot-password"
-                            className="text-sm text-primary hover:underline"
-                        >
-                            Forgot Password?
-                        </Link>
-                    </div>
-                  <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Sign In
+              Send Reset Link
             </Button>
             <div className="text-sm text-muted-foreground">
-              Don&apos;t have an account?{" "}
-              <Link href="/register" className="text-primary hover:underline">
-                Register
+              Remember your password?{" "}
+              <Link href="/login" className="text-primary hover:underline">
+                Sign In
               </Link>
             </div>
           </CardFooter>
