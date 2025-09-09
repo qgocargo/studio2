@@ -1,16 +1,17 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{userId} {
-      // A user can create their own user document if the uid matches.
-      allow create: if request.auth.uid == userId;
-      // A user can read, or update their own user document.
+      // Allow users to read and update their own profile.
       allow read, update: if request.auth.uid == userId;
+      // Allow new users to create their own profile.
+      allow create: if request.auth.uid == userId;
     }
+    // Allow authenticated users to list users. 
+    // This is required for the registration process to check if it's the first user.
     match /users/{document=**} {
-      // Allow reading the users collection for auth-related checks.
-      // This is needed to check if a user is the first user during registration.
-      allow list: if request.auth != null;
+        allow list: if request.auth != null;
     }
   }
 }
