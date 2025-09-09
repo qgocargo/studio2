@@ -46,6 +46,10 @@ export async function registerUser(values: z.infer<typeof registerSchema>) {
     if (error instanceof z.ZodError) {
         return { success: false, message: "Invalid form data." };
     }
+    // Check for a specific Firebase error for an existing email
+    if (error.code === 'auth/email-already-in-use') {
+      return { success: false, message: "This email address is already registered." };
+    }
     return { success: false, message: error.message || "An unknown error occurred." };
   }
 }
