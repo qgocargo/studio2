@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
   name: z.string().min(3, { message: "Name must be at least 3 characters." }),
@@ -71,7 +72,7 @@ export default function RegisterPage() {
                 <p>An administrator will review your request. You will be able to log in once your account is approved.</p>
             </CardContent>
             <CardFooter>
-                <Link href="/login" className={buttonVariants({variant: 'link'})}>
+                <Link href="/login" className={cn(buttonVariants({variant: 'link'}))}>
                     Back to Login
                 </Link>
             </CardFooter>
