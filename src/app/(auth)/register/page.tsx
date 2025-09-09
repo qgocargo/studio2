@@ -1,5 +1,7 @@
+
 "use client";
 
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -36,6 +38,7 @@ const formSchema = z.object({
 
 export default function RegisterPage() {
   const { toast } = useToast();
+  const [isRegistrationComplete, setIsRegistrationComplete] = useState(false);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -45,13 +48,13 @@ export default function RegisterPage() {
     },
   });
 
-  const { isSubmitting, isSubmitSuccessful } = form.formState;
+  const { isSubmitting } = form.formState;
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     const result = await registerUser(values);
     if (result.success) {
       toast({ title: "Registration Submitted", description: result.message });
-      form.reset();
+      setIsRegistrationComplete(true);
     } else {
       toast({
         title: "Registration Failed",
@@ -61,7 +64,7 @@ export default function RegisterPage() {
     }
   }
   
-  if (isSubmitSuccessful) {
+  if (isRegistrationComplete) {
     return (
         <Card>
             <CardHeader>
@@ -72,7 +75,7 @@ export default function RegisterPage() {
                 <p>An administrator will review your request. You will be able to log in once your account is approved.</p>
             </CardContent>
             <CardFooter>
-                <Link href="/login" className={cn(buttonVariants({variant: 'link'}))}>
+                <Link href="/login" className={cn(buttonVariants({variant: 'default', className: 'w-full'}))}>
                     Back to Login
                 </Link>
             </CardFooter>
