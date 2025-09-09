@@ -4,7 +4,7 @@
 import { z } from "zod";
 import { auth, db } from "@/lib/firebase/firebase";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as firebaseSignOut } from "firebase/auth";
-import { doc, setDoc, getDoc, serverTimestamp, collection, getDocs, query, limit, updateDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, serverTimestamp, collection, getDocs, query, limit, updateDoc, where } from "firebase/firestore";
 import type { UserProfile } from "@/types";
 import { revalidatePath } from "next/cache";
 
@@ -68,28 +68,30 @@ export async function loginUser(values: z.infer<typeof loginSchema>) {
       const user = userCredential.user;
   
       const userDocRef = doc(db, "users", user.uid);
-      const userDoc = await getDoc(userDocRef);
+      let userDoc = await getDoc(userDocRef);
   
       if (!userDoc.exists()) {
+        // This case should ideally not happen if registration is working.
         await firebaseSignOut(auth);
         return { success: false, message: "User profile not found." };
       }
   
       let userProfile = userDoc.data() as UserProfile;
 
-      // Check if this is the only user and they are pending. If so, make them an admin.
+      // Special check: If there's only one user in the DB and their status is pending,
+      // it must be the first user. Let's make them an admin.
       const usersCollection = collection(db, 'users');
-      const q = query(usersCollection);
-      const snapshot = await getDocs(q);
+      const allUsersQuery = query(usersCollection);
+      const allUsersSnapshot = await getDocs(allUsersQuery);
 
-      if (snapshot.size === 1 && userProfile.status === 'pending') {
+      if (allUsersSnapshot.size === 1 && userProfile.status === 'pending') {
         await updateDoc(userDocRef, {
           status: 'approved',
           role: 'admin',
         });
-        // refetch the profile
-        const updatedUserDoc = await getDoc(userDocRef);
-        userProfile = updatedUserDoc.data() as UserProfile;
+        // Re-fetch the profile to get the updated values
+        userDoc = await getDoc(userDocRef);
+        userProfile = userDoc.data() as UserProfile;
       }
   
       if (userProfile.status !== 'approved') {
@@ -108,7 +110,12 @@ export async function loginUser(values: z.infer<typeof loginSchema>) {
       if (error instanceof z.ZodError) {
         return { success: false, message: "Invalid form data." };
       }
-      return { success: false, message: "Invalid credentials or user not approved." };
+      // Check for specific auth errors to give a better message
+      if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        return { success: false, message: "Invalid email or password." };
+      }
+      // Fallback for other errors, including the approval issue which is now handled above.
+      return { success: false, message: "Login failed. Please check your credentials or contact support." };
     }
 }
 
