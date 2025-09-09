@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import { registerUser } from "@/lib/actions";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -71,7 +71,7 @@ export default function RegisterPage() {
                 <p>An administrator will review your request. You will be able to log in once your account is approved.</p>
             </CardContent>
             <CardFooter>
-                <Link href="/login" className={Button({variant: 'link'})}>
+                <Link href="/login" className={buttonVariants({variant: 'link'})}>
                     Back to Login
                 </Link>
             </CardFooter>
