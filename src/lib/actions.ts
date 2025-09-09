@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { auth, db } from "@/lib/firebase/firebase";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as firebaseSignOut } from "firebase/auth";
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, serverTimestamp, collection, getDocs, query, limit } from "firebase/firestore";
 import type { UserProfile } from "@/types";
 import { revalidatePath } from "next/cache";
 
@@ -16,6 +16,13 @@ const registerSchema = z.object({
 export async function registerUser(values: z.infer<typeof registerSchema>) {
   try {
     const validated = registerSchema.parse(values);
+    
+    // Check if this is the first user
+    const usersCollection = collection(db, "users");
+    const q = query(usersCollection, limit(1));
+    const snapshot = await getDocs(q);
+    const isFirstUser = snapshot.empty;
+
     const userCredential = await createUserWithEmailAndPassword(auth, validated.email, validated.password);
     const user = userCredential.user;
 
@@ -23,14 +30,18 @@ export async function registerUser(values: z.infer<typeof registerSchema>) {
       uid: user.uid,
       email: user.email!,
       name: validated.name,
-      role: 'user', // All new users are 'user' by default
-      status: 'pending', // All new users are 'pending'
+      role: isFirstUser ? 'admin' : 'user',
+      status: isFirstUser ? 'approved' : 'pending',
       createdAt: serverTimestamp(),
     };
 
     await setDoc(doc(db, "users", user.uid), userProfile);
     
-    return { success: true, message: "Registration successful! Your account is pending approval." };
+    const message = isFirstUser 
+      ? "Registration successful! You have been registered as the first admin user."
+      : "Registration successful! Your account is pending approval.";
+    
+    return { success: true, message };
   } catch (error: any) {
     if (error instanceof z.ZodError) {
         return { success: false, message: "Invalid form data." };
