@@ -151,13 +151,14 @@ export async function sendPasswordResetEmail(values: z.infer<typeof forgotPasswo
 export async function getUsers(): Promise<UserProfile[]> {
   const usersCollection = collection(db, "users");
   const snapshot = await getDocs(usersCollection);
-  return snapshot.docs.map(doc => ({ ...doc.data() } as UserProfile));
+  const users = snapshot.docs.map(doc => ({ ...doc.data() } as UserProfile));
+  return users;
 }
 
-export async function approveUser(uid: string) {
+export async function approveUser(uid: string, role: UserProfile['role']) {
   try {
     const userDocRef = doc(db, "users", uid);
-    await updateDoc(userDocRef, { status: 'approved' });
+    await updateDoc(userDocRef, { status: 'approved', role: role });
     revalidatePath('/admin/pending-users');
     return { success: true };
   } catch (error: any) {
@@ -278,6 +279,7 @@ const jobSchema = z.object({
   endTime: z.string(),
   notes: z.string().optional(),
   status: z.enum(["Pending", "Finished", "Pending Confirmation"]),
+  assignedCrew: z.array(z.string()).optional(),
 });
 
 export async function getJobs(): Promise<JobSchedule[]> {
@@ -301,17 +303,17 @@ export async function addOrUpdateJob(values: z.infer<typeof jobSchema>) {
         const jobData = {
             ...data,
             date: Timestamp.fromDate(data.date),
-            assignedCrew: [], // Placeholder for now
+            assignedCrew: data.assignedCrew || [],
         };
 
         if (id) {
             await setDoc(doc(db, "jobs", id), jobData, { merge: true });
             revalidatePath('/scheduling');
-            return { success: true, message: "Job details updated." };
+            return { success: true, message: "Job details updated.", jobId: id };
         } else {
-            await addDoc(collection(db, "jobs"), jobData);
+            const newDocRef = await addDoc(collection(db, "jobs"), jobData);
             revalidatePath('/scheduling');
-            return { success: true, message: "New job created." };
+            return { success: true, message: "New job created.", jobId: newDocRef.id };
         }
     } catch (error: any) {
         return { success: false, message: error.message };

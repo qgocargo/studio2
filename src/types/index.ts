@@ -4,7 +4,7 @@ export interface UserProfile {
   uid: string;
   email: string;
   name: string;
-  role: 'admin' | 'user';
+  role: 'admin' | 'supervisor' | 'user';
   status: 'pending' | 'approved' | 'rejected';
   createdAt: Timestamp;
 }

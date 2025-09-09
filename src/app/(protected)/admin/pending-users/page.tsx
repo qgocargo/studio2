@@ -22,29 +22,36 @@ import type { UserProfile } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { approveUser, getUsers, rejectUser } from "@/lib/actions";
 import { Loader2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function PendingUsersPage() {
   const { toast } = useToast();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const fetchUsers = async () => {
+    setLoading(true);
+    const fetchedUsers = await getUsers();
+    setUsers(fetchedUsers);
+    setLoading(false);
+  };
+  
   useEffect(() => {
-    async function fetchUsers() {
-      setLoading(true);
-      const fetchedUsers = await getUsers();
-      setUsers(fetchedUsers);
-      setLoading(false);
-    }
     fetchUsers();
   }, []);
 
-  const handleApprove = async (uid: string) => {
-    const result = await approveUser(uid);
+  const handleApprove = async (uid: string, role: UserProfile['role']) => {
+    const result = await approveUser(uid, role);
     if (result.success) {
-      setUsers(users.map(user => user.uid === uid ? { ...user, status: 'approved' } : user));
+      setUsers(users.map(user => user.uid === uid ? { ...user, status: 'approved', role } : user));
       toast({
         title: "User Approved",
-        description: "The user can now log in to the application.",
+        description: `The user has been approved as a ${role}.`,
       });
     } else {
       toast({ title: "Error", description: result.message, variant: "destructive" });
@@ -99,7 +106,16 @@ export default function PendingUsersPage() {
                   <TableCell>{user.email}</TableCell>
                   <TableCell>{user.createdAt?.toDate().toLocaleDateString() || 'N/A'}</TableCell>
                   <TableCell className="text-right space-x-2">
-                    <Button size="sm" onClick={() => handleApprove(user.uid)}>Approve</Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm">Approve As...</Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem onClick={() => handleApprove(user.uid, 'user')}>User</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleApprove(user.uid, 'supervisor')}>Supervisor</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleApprove(user.uid, 'admin')}>Admin</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <Button size="sm" variant="destructive" onClick={() => handleReject(user.uid)}>Reject</Button>
                   </TableCell>
                 </TableRow>
@@ -124,13 +140,14 @@ export default function PendingUsersPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
             {loading ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center h-24">
+                  <TableCell colSpan={4} className="text-center h-24">
                     <Loader2 className="mx-auto h-6 w-6 animate-spin" />
                   </TableCell>
                 </TableRow>
@@ -139,6 +156,9 @@ export default function PendingUsersPage() {
                   <TableCell className="font-medium">{user.name}</TableCell>
                   <TableCell>{user.email}</TableCell>
                   <TableCell>
+                    <Badge variant="outline">{user.role}</Badge>
+                  </TableCell>
+                  <TableCell>
                     <Badge variant={user.status === 'approved' ? 'default' : 'destructive'}>
                       {user.status}
                     </Badge>
@@ -146,7 +166,7 @@ export default function PendingUsersPage() {
                 </TableRow>
               )) : (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center h-24">No reviewed users yet.</TableCell>
+                  <TableCell colSpan={4} className="text-center h-24">No reviewed users yet.</TableCell>
                 </TableRow>
               )}
             </TableBody>
