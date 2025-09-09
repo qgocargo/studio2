@@ -12,22 +12,27 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useSidebar } from "@/components/ui/sidebar";
+import { useAuth } from "@/hooks/use-auth";
+import { signOut } from "@/lib/actions";
+import { useRouter } from "next/navigation";
 
 export default function AppHeader() {
   const { toggleSidebar } = useSidebar();
+  const { user, userProfile } = useAuth();
+  const router = useRouter();
+
 
   const handleSignOut = async () => {
-    // Authentication is disabled for now.
-    // In the future, this should redirect to /login.
-    window.location.reload();
+    await signOut();
+    router.push('/login');
   };
   
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   }
 
-  const name = "Temp User";
-  const email = "user@example.com";
+  const name = userProfile?.name || "User";
+  const email = user?.email || "";
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">

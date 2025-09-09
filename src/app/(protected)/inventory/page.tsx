@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { PlusCircle, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { PlusCircle, MoreHorizontal, Pencil, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -28,6 +28,7 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
+  DialogClose,
 } from "@/components/ui/dialog";
 import {
     DropdownMenu,
@@ -47,26 +48,24 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import type { InventoryItem } from "@/types";
 import Image from "next/image";
-import { Timestamp } from "firebase/firestore";
+import { addOrUpdateInventoryItem, deleteInventoryItem, getInventory } from "@/lib/actions";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 const inventorySchema = z.object({
+  id: z.string().optional(),
   name: z.string().min(3, { message: "Item name must be at least 3 characters." }),
   sku: z.string().min(3, { message: "SKU must be at least 3 characters." }),
   quantity: z.coerce.number().min(0, { message: "Quantity must be a positive number." }),
+  imageUrl: z.string().url().optional().or(z.literal('')),
 });
 
-const initialInventory: InventoryItem[] = [
-    { id: '1', name: 'Power Drill', sku: 'PD-001', quantity: 15, lastUpdated: Timestamp.now(), imageUrl: 'https://picsum.photos/40/40?random=1' },
-    { id: '2', name: 'Hammer', sku: 'HM-002', quantity: 30, lastUpdated: Timestamp.now(), imageUrl: 'https://picsum.photos/40/40?random=2' },
-    { id: '3', name: 'Screwdriver Set', sku: 'SS-003', quantity: 25, lastUpdated: Timestamp.now(), imageUrl: 'https://picsum.photos/40/40?random=3' },
-    { id: '4', name: 'Wrench Set', sku: 'WS-004', quantity: 20, lastUpdated: Timestamp.now(), imageUrl: 'https://picsum.photos/40/40?random=4' },
-];
 
 export default function InventoryPage() {
   const { toast } = useToast();
-  const [inventory, setInventory] = useState<InventoryItem[]>(initialInventory);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const form = useForm<z.infer<typeof inventorySchema>>({
     resolver: zodResolver(inventorySchema),
@@ -74,12 +73,24 @@ export default function InventoryPage() {
       name: "",
       sku: "",
       quantity: 0,
+      imageUrl: "",
     },
   });
 
+  const fetchInventory = async () => {
+    setLoading(true);
+    const items = await getInventory();
+    setInventory(items);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    fetchInventory();
+  }, []);
+
   const handleAddNew = () => {
     setEditingItem(null);
-    form.reset({ name: "", sku: "", quantity: 0 });
+    form.reset({ name: "", sku: "", quantity: 0, imageUrl: "" });
     setIsDialogOpen(true);
   };
 
@@ -89,42 +100,26 @@ export default function InventoryPage() {
     setIsDialogOpen(true);
   };
   
-  const handleDelete = (id: string) => {
-    setInventory(inventory.filter((item) => item.id !== id));
-    toast({
-        title: "Success",
-        description: "Inventory item removed.",
-      });
+  const handleDelete = async (id: string) => {
+    const result = await deleteInventoryItem(id);
+    if (result.success) {
+      await fetchInventory();
+      toast({ title: "Success", description: "Inventory item removed." });
+    } else {
+      toast({ title: "Error", description: result.message, variant: "destructive" });
+    }
   };
 
-  const onSubmit = (values: z.infer<typeof inventorySchema>) => {
-    if (editingItem) {
-      // Update existing item
-      setInventory(
-        inventory.map((item) =>
-          item.id === editingItem.id ? { ...item, ...values, lastUpdated: Timestamp.now() } : item
-        )
-      );
-      toast({
-        title: "Success",
-        description: "Item details updated.",
-      });
+  const onSubmit = async (values: z.infer<typeof inventorySchema>) => {
+    const result = await addOrUpdateInventoryItem(values);
+    if (result.success) {
+        await fetchInventory();
+        toast({ title: "Success", description: result.message });
+        setIsDialogOpen(false);
+        form.reset();
     } else {
-      // Add new item
-      const newItem: InventoryItem = {
-        id: (inventory.length + 1).toString(), // simple id generation
-        ...values,
-        lastUpdated: Timestamp.now(),
-        imageUrl: `https://picsum.photos/40/40?random=${inventory.length + 1}`
-      };
-      setInventory([...inventory, newItem]);
-      toast({
-        title: "Success",
-        description: "New item added to inventory.",
-      });
+        toast({ title: "Error", description: result.message, variant: "destructive" });
     }
-    setIsDialogOpen(false);
-    form.reset();
   };
 
   return (
@@ -160,7 +155,14 @@ export default function InventoryPage() {
                 </TableRow>
                 </TableHeader>
                 <TableBody>
-                {inventory.map((item) => (
+                {loading ? (
+                    <TableRow>
+                        <TableCell colSpan={6} className="text-center h-24">
+                            <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                        </TableCell>
+                    </TableRow>
+                ) : inventory.length > 0 ? (
+                    inventory.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>
                         <Image src={item.imageUrl || `https://picsum.photos/40/40`} alt={item.name} width={40} height={40} className="rounded-md" data-ai-hint="tool equipment" />
@@ -168,7 +170,7 @@ export default function InventoryPage() {
                       <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell>{item.sku}</TableCell>
                       <TableCell>{item.quantity}</TableCell>
-                      <TableCell>{item.lastUpdated.toDate().toLocaleDateString()}</TableCell>
+                      <TableCell>{item.lastUpdated?.toDate().toLocaleDateString() || 'N/A'}</TableCell>
                       <TableCell className="text-right">
                       <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -181,14 +183,35 @@ export default function InventoryPage() {
                             <DropdownMenuItem onClick={() => handleEdit(item)}>
                               <Pencil className="mr-2 h-4 w-4" /> Edit
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDelete(item.id)} className="text-destructive">
-                              <Trash2 className="mr-2 h-4 w-4" /> Delete
-                            </DropdownMenuItem>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                   <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                </DropdownMenuItem>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This action cannot be undone. This will permanently delete the item from your inventory.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDelete(item.id)}>Delete</AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                ))}
+                ))
+                ) : (
+                    <TableRow>
+                        <TableCell colSpan={6} className="text-center h-24">No inventory items found.</TableCell>
+                    </TableRow>
+                )}
                 </TableBody>
             </Table>
             </CardContent>
@@ -244,11 +267,27 @@ export default function InventoryPage() {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="imageUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Image URL (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="https://example.com/image.png" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit">
+                <DialogClose asChild>
+                    <Button type="button" variant="outline">
+                        Cancel
+                    </Button>
+                </DialogClose>
+                <Button type="submit" disabled={form.formState.isSubmitting}>
+                  {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {editingItem ? "Save Changes" : "Add Item"}
                 </Button>
               </DialogFooter>

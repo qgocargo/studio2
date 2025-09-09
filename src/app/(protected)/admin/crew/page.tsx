@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { PlusCircle, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { PlusCircle, MoreHorizontal, Pencil, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -28,6 +28,7 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
+  DialogClose,
 } from "@/components/ui/dialog";
 import {
     DropdownMenu,
@@ -52,9 +53,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import type { CrewMember, CrewRole } from "@/types";
+import type { CrewMember } from "@/types";
+import { addOrUpdateCrewMember, deleteCrewMember, getCrewMembers } from "@/lib/actions";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 const crewSchema = z.object({
+  id: z.string().optional(),
   name: z.string().min(3, { message: "Name must be at least 3 characters." }),
   role: z.enum(["Driver", "Supervisor", "Helper"], {
     errorMap: () => ({ message: "Please select a role." }),
@@ -62,18 +66,12 @@ const crewSchema = z.object({
   contact: z.string().min(10, { message: "Please enter a valid contact number or email." }),
 });
 
-const initialCrew: CrewMember[] = [
-    { id: '1', name: 'John Doe', role: 'Supervisor', contact: 'john.d@example.com'},
-    { id: '2', name: 'Jane Smith', role: 'Driver', contact: '555-1234'},
-    { id: '3', name: 'Mike Ross', role: 'Helper', contact: 'mike.r@example.com'},
-    { id: '4', name: 'Rachel Zane', role: 'Driver', contact: '555-5678'},
-];
-
 export default function CrewPage() {
   const { toast } = useToast();
-  const [crewMembers, setCrewMembers] = useState<CrewMember[]>(initialCrew);
+  const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCrew, setEditingCrew] = useState<CrewMember | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const form = useForm<z.infer<typeof crewSchema>>({
     resolver: zodResolver(crewSchema),
@@ -83,6 +81,17 @@ export default function CrewPage() {
       contact: "",
     },
   });
+
+  const fetchCrew = async () => {
+    setLoading(true);
+    const members = await getCrewMembers();
+    setCrewMembers(members);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    fetchCrew();
+  }, []);
 
   const handleAddNew = () => {
     setEditingCrew(null);
@@ -96,40 +105,26 @@ export default function CrewPage() {
     setIsDialogOpen(true);
   };
   
-  const handleDelete = (id: string) => {
-    setCrewMembers(crewMembers.filter((crew) => crew.id !== id));
-    toast({
-        title: "Success",
-        description: "Crew member removed.",
-      });
+  const handleDelete = async (id: string) => {
+    const result = await deleteCrewMember(id);
+    if (result.success) {
+      await fetchCrew();
+      toast({ title: "Success", description: "Crew member removed." });
+    } else {
+      toast({ title: "Error", description: result.message, variant: "destructive" });
+    }
   };
 
-  const onSubmit = (values: z.infer<typeof crewSchema>) => {
-    if (editingCrew) {
-      // Update existing crew member
-      setCrewMembers(
-        crewMembers.map((crew) =>
-          crew.id === editingCrew.id ? { ...crew, ...values } : crew
-        )
-      );
-      toast({
-        title: "Success",
-        description: "Crew member details updated.",
-      });
+  const onSubmit = async (values: z.infer<typeof crewSchema>) => {
+    const result = await addOrUpdateCrewMember(values);
+    if (result.success) {
+      await fetchCrew();
+      toast({ title: "Success", description: result.message });
+      setIsDialogOpen(false);
+      form.reset();
     } else {
-      // Add new crew member
-      const newCrew: CrewMember = {
-        id: (crewMembers.length + 1).toString(), // simple id generation
-        ...values,
-      };
-      setCrewMembers([...crewMembers, newCrew]);
-      toast({
-        title: "Success",
-        description: "New crew member added.",
-      });
+      toast({ title: "Error", description: result.message, variant: "destructive" });
     }
-    setIsDialogOpen(false);
-    form.reset();
   };
 
   return (
@@ -157,7 +152,13 @@ export default function CrewPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {crewMembers.map((crew) => (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center h-24">
+                    <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                  </TableCell>
+                </TableRow>
+              ) : crewMembers.length > 0 ? crewMembers.map((crew) => (
                 <TableRow key={crew.id}>
                   <TableCell className="font-medium">{crew.name}</TableCell>
                   <TableCell>{crew.role}</TableCell>
@@ -174,14 +175,34 @@ export default function CrewPage() {
                         <DropdownMenuItem onClick={() => handleEdit(crew)}>
                           <Pencil className="mr-2 h-4 w-4" /> Edit
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDelete(crew.id)} className="text-destructive">
-                          <Trash2 className="mr-2 h-4 w-4" /> Delete
-                        </DropdownMenuItem>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                               <Trash2 className="mr-2 h-4 w-4" /> Delete
+                            </DropdownMenuItem>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This action cannot be undone. This will permanently delete the crew member.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDelete(crew.id)}>Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              ))}
+              )) : (
+                <TableRow>
+                    <TableCell colSpan={4} className="text-center h-24">No crew members found.</TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -249,10 +270,13 @@ export default function CrewPage() {
                 )}
               />
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit">
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">
+                    Cancel
+                  </Button>
+                </DialogClose>
+                <Button type="submit" disabled={form.formState.isSubmitting}>
+                  {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {editingCrew ? "Save Changes" : "Add Member"}
                 </Button>
               </DialogFooter>

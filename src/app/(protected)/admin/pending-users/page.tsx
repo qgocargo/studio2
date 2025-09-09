@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -19,34 +19,50 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from "@/types";
-import { Timestamp } from "firebase/firestore";
 import { Badge } from "@/components/ui/badge";
-
-const initialPendingUsers: UserProfile[] = [
-  { uid: 'user-1', name: 'Alice Johnson', email: 'alice@example.com', role: 'user', status: 'pending', createdAt: Timestamp.now() },
-  { uid: 'user-2', name: 'Bob Williams', email: 'bob@example.com', role: 'user', status: 'pending', createdAt: Timestamp.now() },
-  { uid: 'user-3', name: 'Charlie Brown', email: 'charlie@example.com', role: 'user', status: 'rejected', createdAt: Timestamp.now() },
-];
+import { approveUser, getUsers, rejectUser } from "@/lib/actions";
+import { Loader2 } from "lucide-react";
 
 export default function PendingUsersPage() {
   const { toast } = useToast();
-  const [users, setUsers] = useState<UserProfile[]>(initialPendingUsers);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleApprove = (uid: string) => {
-    setUsers(users.map(user => user.uid === uid ? { ...user, status: 'approved' } : user));
-    toast({
-      title: "User Approved",
-      description: "The user can now log in to the application.",
-    });
+  useEffect(() => {
+    async function fetchUsers() {
+      setLoading(true);
+      const fetchedUsers = await getUsers();
+      setUsers(fetchedUsers);
+      setLoading(false);
+    }
+    fetchUsers();
+  }, []);
+
+  const handleApprove = async (uid: string) => {
+    const result = await approveUser(uid);
+    if (result.success) {
+      setUsers(users.map(user => user.uid === uid ? { ...user, status: 'approved' } : user));
+      toast({
+        title: "User Approved",
+        description: "The user can now log in to the application.",
+      });
+    } else {
+      toast({ title: "Error", description: result.message, variant: "destructive" });
+    }
   };
 
-  const handleReject = (uid: string) => {
-    setUsers(users.map(user => user.uid === uid ? { ...user, status: 'rejected' } : user));
-    toast({
-      title: "User Rejected",
-      description: "The user will not be able to log in.",
-      variant: "destructive"
-    });
+  const handleReject = async (uid: string) => {
+    const result = await rejectUser(uid);
+    if (result.success) {
+      setUsers(users.map(user => user.uid === uid ? { ...user, status: 'rejected' } : user));
+      toast({
+        title: "User Rejected",
+        description: "The user will not be able to log in.",
+        variant: "destructive"
+      });
+    } else {
+      toast({ title: "Error", description: result.message, variant: "destructive" });
+    }
   };
 
   const pendingUsers = users.filter(u => u.status === 'pending');
@@ -71,11 +87,17 @@ export default function PendingUsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {pendingUsers.length > 0 ? pendingUsers.map((user) => (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center h-24">
+                    <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                  </TableCell>
+                </TableRow>
+              ) : pendingUsers.length > 0 ? pendingUsers.map((user) => (
                 <TableRow key={user.uid}>
                   <TableCell className="font-medium">{user.name}</TableCell>
                   <TableCell>{user.email}</TableCell>
-                  <TableCell>{user.createdAt.toDate().toLocaleDateString()}</TableCell>
+                  <TableCell>{user.createdAt?.toDate().toLocaleDateString() || 'N/A'}</TableCell>
                   <TableCell className="text-right space-x-2">
                     <Button size="sm" onClick={() => handleApprove(user.uid)}>Approve</Button>
                     <Button size="sm" variant="destructive" onClick={() => handleReject(user.uid)}>Reject</Button>
@@ -106,7 +128,13 @@ export default function PendingUsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {otherUsers.length > 0 ? otherUsers.map((user) => (
+            {loading ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center h-24">
+                    <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                  </TableCell>
+                </TableRow>
+              ) : otherUsers.length > 0 ? otherUsers.map((user) => (
                 <TableRow key={user.uid}>
                   <TableCell className="font-medium">{user.name}</TableCell>
                   <TableCell>{user.email}</TableCell>

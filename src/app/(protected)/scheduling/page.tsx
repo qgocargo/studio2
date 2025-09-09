@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { PlusCircle, MoreHorizontal, Pencil, Trash2, Calendar as CalendarIcon } from "lucide-react";
+import { PlusCircle, MoreHorizontal, Pencil, Trash2, Calendar as CalendarIcon, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -28,6 +28,7 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
+  DialogClose,
 } from "@/components/ui/dialog";
 import {
     DropdownMenu,
@@ -46,32 +47,33 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { JobSchedule } from "@/types";
-import { Timestamp } from "firebase/firestore";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Textarea } from "@/components/ui/textarea";
+import { addOrUpdateJob, deleteJob, getJobs } from "@/lib/actions";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 
 const jobSchema = z.object({
+  id: z.string().optional(),
   taskName: z.string().min(3, { message: "Task name must be at least 3 characters." }),
   location: z.string().min(3, { message: "Location is required." }),
   date: z.date({ required_error: "A date is required." }),
   startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, { message: "Invalid time format (HH:MM)."}),
   endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, { message: "Invalid time format (HH:MM)."}),
   notes: z.string().optional(),
+  status: z.enum(["Pending", "Finished", "Pending Confirmation"]),
 });
 
-const initialJobs: JobSchedule[] = [
-    { id: '1', taskName: 'Install new kitchen sink', date: Timestamp.fromDate(new Date()), startTime: '09:00', endTime: '12:00', location: '123 Maple St', status: 'Pending', assignedCrew: [] },
-    { id: '2', taskName: 'Repair electrical wiring', date: Timestamp.fromDate(new Date()), startTime: '13:00', endTime: '15:00', location: '456 Oak Ave', status: 'Finished', assignedCrew: [] },
-];
 
 export default function SchedulingPage() {
   const { toast } = useToast();
-  const [jobs, setJobs] = useState<JobSchedule[]>(initialJobs);
+  const [jobs, setJobs] = useState<JobSchedule[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<JobSchedule | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const form = useForm<z.infer<typeof jobSchema>>({
     resolver: zodResolver(jobSchema),
@@ -81,12 +83,25 @@ export default function SchedulingPage() {
       startTime: "",
       endTime: "",
       notes: "",
+      status: 'Pending',
     },
   });
 
+  const fetchJobs = async () => {
+    setLoading(true);
+    const jobs = await getJobs();
+    setJobs(jobs);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    fetchJobs();
+  }, []);
+
+
   const handleAddNew = () => {
     setEditingJob(null);
-    form.reset({ taskName: "", location: "", startTime: "", endTime: "", notes: "" });
+    form.reset({ taskName: "", location: "", date: new Date(), startTime: "", endTime: "", notes: "", status: 'Pending' });
     setIsDialogOpen(true);
   };
 
@@ -99,36 +114,40 @@ export default function SchedulingPage() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setJobs(jobs.filter((job) => job.id !== id));
-    toast({
-        title: "Success",
-        description: "Job has been removed from the schedule.",
-      });
+  const handleDelete = async (id: string) => {
+    const result = await deleteJob(id);
+    if (result.success) {
+      await fetchJobs();
+      toast({ title: "Success", description: "Job has been removed from the schedule." });
+    } else {
+      toast({ title: "Error", description: result.message, variant: "destructive" });
+    }
   };
 
-  const onSubmit = (values: z.infer<typeof jobSchema>) => {
-    if (editingJob) {
-      setJobs(
-        jobs.map((job) =>
-          job.id === editingJob.id ? { ...editingJob, ...values, date: Timestamp.fromDate(values.date) } : job
-        )
-      );
-      toast({ title: "Success", description: "Job details updated." });
+  const onSubmit = async (values: z.infer<typeof jobSchema>) => {
+    const result = await addOrUpdateJob(values);
+    if (result.success) {
+      await fetchJobs();
+      toast({ title: "Success", description: result.message });
+      setIsDialogOpen(false);
+      form.reset();
     } else {
-      const newJob: JobSchedule = {
-        id: (jobs.length + 1).toString(),
-        ...values,
-        date: Timestamp.fromDate(values.date),
-        status: 'Pending',
-        assignedCrew: [],
-      };
-      setJobs([...jobs, newJob]);
-      toast({ title: "Success", description: "New job created." });
+      toast({ title: "Error", description: result.message, variant: "destructive" });
     }
-    setIsDialogOpen(false);
-    form.reset();
   };
+  
+  const getStatusVariant = (status: JobSchedule['status']) => {
+    switch (status) {
+      case 'Finished':
+        return 'default';
+      case 'Pending':
+        return 'secondary';
+      case 'Pending Confirmation':
+        return 'destructive';
+      default:
+        return 'outline';
+    }
+  }
 
   return (
     <>
@@ -163,33 +182,65 @@ export default function SchedulingPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {jobs.map((job) => (
-                <TableRow key={job.id}>
-                  <TableCell className="font-medium">{job.taskName}</TableCell>
-                  <TableCell>{format(job.date.toDate(), "PPP")}</TableCell>
-                  <TableCell>{job.startTime} - {job.endTime}</TableCell>
-                  <TableCell>{job.location}</TableCell>
-                  <TableCell>{job.status}</TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Open menu</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEdit(job)}>
-                          <Pencil className="mr-2 h-4 w-4" /> Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDelete(job.id)} className="text-destructive">
-                          <Trash2 className="mr-2 h-4 w-4" /> Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+              {loading ? (
+                 <TableRow>
+                    <TableCell colSpan={6} className="text-center h-24">
+                        <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                    </TableCell>
                 </TableRow>
-              ))}
+              ) : jobs.length > 0 ? (
+                jobs.map((job) => (
+                    <TableRow key={job.id}>
+                      <TableCell className="font-medium">{job.taskName}</TableCell>
+                      <TableCell>{format(job.date.toDate(), "PPP")}</TableCell>
+                      <TableCell>{job.startTime} - {job.endTime}</TableCell>
+                      <TableCell>{job.location}</TableCell>
+                      <TableCell>
+                        <Badge variant={getStatusVariant(job.status)}>
+                            {job.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEdit(job)}>
+                              <Pencil className="mr-2 h-4 w-4" /> Edit
+                            </DropdownMenuItem>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                   <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                </DropdownMenuItem>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This action cannot be undone. This will permanently delete this job.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDelete(job.id)}>Delete</AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+              ) : (
+                <TableRow>
+                    <TableCell colSpan={6} className="text-center h-24">No jobs scheduled.</TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
           </CardContent>
@@ -302,11 +353,36 @@ export default function SchedulingPage() {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a status" />
+                            </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            <SelectItem value="Pending">Pending</SelectItem>
+                            <SelectItem value="Finished">Finished</SelectItem>
+                            <SelectItem value="Pending Confirmation">Pending Confirmation</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit">
+                <DialogClose asChild>
+                    <Button type="button" variant="outline">
+                        Cancel
+                    </Button>
+                </DialogClose>
+                <Button type="submit" disabled={form.formState.isSubmitting}>
+                  {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {editingJob ? "Save Changes" : "Create Job"}
                 </Button>
               </DialogFooter>

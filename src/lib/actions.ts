@@ -4,8 +4,8 @@
 import { z } from "zod";
 import { auth, db } from "@/lib/firebase/firebase";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as firebaseSignOut, sendPasswordResetEmail as firebaseSendPasswordResetEmail } from "firebase/auth";
-import { doc, setDoc, getDoc, serverTimestamp, collection, getDocs, query, limit, updateDoc, where } from "firebase/firestore";
-import type { UserProfile } from "@/types";
+import { doc, setDoc, getDoc, serverTimestamp, collection, getDocs, query, limit, updateDoc, where, addDoc, deleteDoc, Timestamp } from "firebase/firestore";
+import type { CrewMember, InventoryItem, JobSchedule, UserProfile } from "@/types";
 import { revalidatePath } from "next/cache";
 
 const registerSchema = z.object({
@@ -33,7 +33,7 @@ export async function registerUser(values: z.infer<typeof registerSchema>) {
       name: validated.name,
       role: isFirstUser ? 'admin' : 'user',
       status: isFirstUser ? 'approved' : 'pending',
-      createdAt: serverTimestamp(),
+      createdAt: serverTimestamp() as Timestamp,
     };
 
     await setDoc(doc(db, "users", user.uid), userProfile);
@@ -42,6 +42,7 @@ export async function registerUser(values: z.infer<typeof registerSchema>) {
       ? "Registration successful! You are the admin."
       : "Registration successful! Your account is pending approval.";
     
+    revalidatePath('/admin/pending-users');
     return { success: true, message };
   } catch (error: any) {
     if (error instanceof z.ZodError) {
@@ -143,5 +144,186 @@ export async function sendPasswordResetEmail(values: z.infer<typeof forgotPasswo
             return { success: true, message: "Password reset email sent. Please check your inbox." };
         }
         return { success: false, message: error.message || "Failed to send reset email." };
+    }
+}
+
+// User Management Actions
+export async function getUsers(): Promise<UserProfile[]> {
+  const usersCollection = collection(db, "users");
+  const snapshot = await getDocs(usersCollection);
+  return snapshot.docs.map(doc => ({ ...doc.data() } as UserProfile));
+}
+
+export async function approveUser(uid: string) {
+  try {
+    const userDocRef = doc(db, "users", uid);
+    await updateDoc(userDocRef, { status: 'approved' });
+    revalidatePath('/admin/pending-users');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+}
+
+export async function rejectUser(uid: string) {
+  try {
+    const userDocRef = doc(db, "users", uid);
+    await updateDoc(userDocRef, { status: 'rejected' });
+    revalidatePath('/admin/pending-users');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+}
+
+// Crew Management Actions
+const crewSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(3),
+  role: z.enum(["Driver", "Supervisor", "Helper"]),
+  contact: z.string().min(10),
+});
+
+export async function getCrewMembers(): Promise<CrewMember[]> {
+  const crewCollection = collection(db, "crew");
+  const snapshot = await getDocs(crewCollection);
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMember));
+}
+
+export async function addOrUpdateCrewMember(values: z.infer<typeof crewSchema>) {
+  try {
+    const validated = crewSchema.parse(values);
+    const { id, ...data } = validated;
+
+    if (id) {
+      await setDoc(doc(db, "crew", id), data, { merge: true });
+      revalidatePath('/admin/crew');
+      return { success: true, message: "Crew member updated." };
+    } else {
+      await addDoc(collection(db, "crew"), data);
+      revalidatePath('/admin/crew');
+      return { success: true, message: "New crew member added." };
+    }
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+}
+
+export async function deleteCrewMember(id: string) {
+  try {
+    await deleteDoc(doc(db, "crew", id));
+    revalidatePath('/admin/crew');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+}
+
+// Inventory Management Actions
+const inventorySchema = z.object({
+    id: z.string().optional(),
+    name: z.string().min(3),
+    sku: z.string().min(3),
+    quantity: z.coerce.number().min(0),
+    imageUrl: z.string().url().optional().or(z.literal('')),
+});
+
+export async function getInventory(): Promise<InventoryItem[]> {
+    const invCollection = collection(db, "inventory");
+    const snapshot = await getDocs(invCollection);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as InventoryItem));
+}
+
+export async function addOrUpdateInventoryItem(values: z.infer<typeof inventorySchema>) {
+    try {
+        const validated = inventorySchema.parse(values);
+        const { id, ...data } = validated;
+        const itemData = {
+            ...data,
+            lastUpdated: serverTimestamp()
+        }
+
+        if (id) {
+            await setDoc(doc(db, "inventory", id), itemData, { merge: true });
+            revalidatePath('/inventory');
+            return { success: true, message: "Inventory item updated." };
+        } else {
+            await addDoc(collection(db, "inventory"), itemData);
+            revalidatePath('/inventory');
+            return { success: true, message: "New item added to inventory." };
+        }
+    } catch (error: any) {
+        return { success: false, message: error.message };
+    }
+}
+
+export async function deleteInventoryItem(id: string) {
+    try {
+        await deleteDoc(doc(db, "inventory", id));
+        revalidatePath('/inventory');
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, message: error.message };
+    }
+}
+
+
+// Job Scheduling Actions
+const jobSchema = z.object({
+  id: z.string().optional(),
+  taskName: z.string().min(3),
+  location: z.string().min(3),
+  date: z.date(),
+  startTime: z.string(),
+  endTime: z.string(),
+  notes: z.string().optional(),
+  status: z.enum(["Pending", "Finished", "Pending Confirmation"]),
+});
+
+export async function getJobs(): Promise<JobSchedule[]> {
+    const jobsCollection = collection(db, "jobs");
+    const snapshot = await getDocs(query(jobsCollection));
+    return snapshot.docs.map(doc => {
+      const data = doc.data();
+      return { 
+        id: doc.id,
+        ...data,
+        date: (data.date as Timestamp),
+      } as JobSchedule
+    });
+}
+
+export async function addOrUpdateJob(values: z.infer<typeof jobSchema>) {
+    try {
+        const validated = jobSchema.parse(values);
+        const { id, ...data } = validated;
+        
+        const jobData = {
+            ...data,
+            date: Timestamp.fromDate(data.date),
+            assignedCrew: [], // Placeholder for now
+        };
+
+        if (id) {
+            await setDoc(doc(db, "jobs", id), jobData, { merge: true });
+            revalidatePath('/scheduling');
+            return { success: true, message: "Job details updated." };
+        } else {
+            await addDoc(collection(db, "jobs"), jobData);
+            revalidatePath('/scheduling');
+            return { success: true, message: "New job created." };
+        }
+    } catch (error: any) {
+        return { success: false, message: error.message };
+    }
+}
+
+export async function deleteJob(id: string) {
+    try {
+        await deleteDoc(doc(db, "jobs", id));
+        revalidatePath('/scheduling');
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, message: error.message };
     }
 }
