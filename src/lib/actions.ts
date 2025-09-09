@@ -71,7 +71,6 @@ export async function loginUser(values: z.infer<typeof loginSchema>) {
       let userDoc = await getDoc(userDocRef);
   
       if (!userDoc.exists()) {
-        // This case should ideally not happen if registration is working.
         await firebaseSignOut(auth);
         return { success: false, message: "User profile not found." };
       }
@@ -114,8 +113,8 @@ export async function loginUser(values: z.infer<typeof loginSchema>) {
       if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
         return { success: false, message: "Invalid email or password." };
       }
-      // Fallback for other errors, including the approval issue which is now handled above.
-      return { success: false, message: "Login failed. Please check your credentials or contact support." };
+      // Fallback for other errors
+      return { success: false, message: error.message || "Login failed. Please check your credentials or contact support." };
     }
 }
 
