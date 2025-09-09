@@ -11,24 +11,23 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useAuth } from "@/hooks/use-auth";
-import { signOut } from "@/lib/actions";
-import { useRouter } from "next/navigation";
 import { useSidebar } from "@/components/ui/sidebar";
 
 export default function AppHeader() {
-  const { user, userProfile } = useAuth();
-  const router = useRouter();
   const { toggleSidebar } = useSidebar();
 
   const handleSignOut = async () => {
-    await signOut();
-    router.push('/login');
+    // Authentication is disabled for now.
+    // In the future, this should redirect to /login.
+    window.location.reload();
   };
   
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   }
+
+  const name = "Temp User";
+  const email = "user@example.com";
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
@@ -49,14 +48,14 @@ export default function AppHeader() {
           <Button variant="outline" size="icon" className="overflow-hidden rounded-full">
             <Avatar>
               <AvatarImage src="/placeholder-user.jpg" alt="User avatar" />
-              <AvatarFallback>{userProfile?.name ? getInitials(userProfile.name) : 'U'}</AvatarFallback>
+              <AvatarFallback>{getInitials(name)}</AvatarFallback>
             </Avatar>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>
-            <p className="font-semibold">{userProfile?.name}</p>
-            <p className="text-xs text-muted-foreground font-normal">{userProfile?.email}</p>
+            <p className="font-semibold">{name}</p>
+            <p className="text-xs text-muted-foreground font-normal">{email}</p>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem>
