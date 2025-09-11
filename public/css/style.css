@@ -1,0 +1,171 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f4f4f8;
+    color: #333;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.container {
+    width: 100%;
+    max-width: 800px;
+    background: #fff;
+    padding: 20px 40px;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+}
+
+/* Authentication Forms */
+#login-section, #register-section {
+    max-width: 400px;
+    margin: 40px auto;
+    text-align: center;
+}
+
+h2 {
+    color: #111;
+    margin-bottom: 24px;
+}
+
+input[type="email"],
+input[type="password"],
+input[type="text"],
+textarea {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 16px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-sizing: border-box; /* Important for padding and width */
+    font-size: 16px;
+}
+
+textarea {
+    min-height: 150px;
+    resize: vertical;
+    font-family: monospace;
+}
+
+button {
+    width: 100%;
+    padding: 12px;
+    background-color: #007aff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+#login-section p, #register-section p {
+    margin-top: 20px;
+}
+
+a {
+    color: #007aff;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* Main Content */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+.header h1 {
+    font-size: 24px;
+    margin: 0;
+}
+
+.header button {
+    width: auto;
+    padding: 8px 16px;
+    background-color: #ff3b30;
+}
+.header button:hover {
+    background-color: #c00;
+}
+
+#content .item {
+    background-color: #f9f9f9;
+    border: 1px solid #eee;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+#content h3 {
+    margin-top: 0;
+    color: #000;
+}
+
+#content pre {
+    background-color: #eef;
+    padding: 10px;
+    border-radius: 4px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: monospace;
+}
+
+.actions button {
+    width: auto;
+    padding: 6px 12px;
+    margin-right: 10px;
+    font-size: 14px;
+    background-color: #5856d6;
+}
+
+.actions button:last-child {
+    background-color: #ff9500;
+}
+
+.actions button:hover {
+    opacity: 0.8;
+}
+
+#form-container {
+    padding: 20px;
+    margin-top: 20px;
+    border: 1px dashed #ccc;
+    border-radius: 8px;
+}
+
+#form-container button {
+    margin-top: 10px;
+}
+
+#form-container #cancel-btn {
+    background-color: #8e8e93;
+}
+#form-container #cancel-btn:hover {
+    background-color: #6d6d72;
+}
+
+
+#add-new-btn {
+    margin-top: 20px;
+    background-color: #34c759;
+}
+#add-new-btn:hover {
+    background-color: #2b9d4f;
+}
