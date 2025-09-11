@@ -1,11 +1,10 @@
 import type {Metadata} from 'next';
 import './globals.css';
-import { AuthProvider } from '@/hooks/use-auth';
 import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
-  title: 'FieldForce Manager',
-  description: 'Manage your field force with ease.',
+  title: 'New Project',
+  description: 'A new project built with Studio.',
 };
 
 export default function RootLayout({
@@ -21,10 +20,8 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased">
-        <AuthProvider>
-          {children}
-          <Toaster />
-        </AuthProvider>
+        {children}
+        <Toaster />
       </body>
     </html>
   );
