@@ -17,39 +17,6 @@ function get_input() {
     return json_decode(file_get_contents('php://input'), true);
 }
 
-function get_current_user_from_token() {
-    $jwt_key = 'QgoCargoApiSecretKey@2024!_S$uper_S#ecure';
-    $headers = getallheaders();
-    
-    if (!isset($headers['Authorization'])) {
-        return null;
-    }
-
-    $authHeader = $headers['Authorization'];
-    list($jwt) = sscanf($authHeader, 'Bearer %s');
-
-    if (!$jwt) {
-        return null;
-    }
-
-    try {
-        // THIS IS THE CORRECTED LINE
-        $decoded = JWT::decode($jwt, new Key($jwt_key, 'HS256'));
-        $userId = $decoded->data->userId;
-        
-        $db = DB::getInstance()->getConnection();
-        $result = $db->query("SELECT id, displayName, role, status FROM users WHERE id = $userId");
-        if ($user = $result->fetch_assoc()) {
-            return $user;
-        }
-        return null;
-    } catch (Exception $e) {
-        error_log("JWT Decode Error in auth.php: " . $e->getMessage());
-        return null;
-    }
-}
-
-
 // --- Main Logic ---
 $db = DB::getInstance()->getConnection();
 $action = $_GET['action'] ?? '';
@@ -119,11 +86,31 @@ try {
 
         case 'GET':
             if ($action === 'check_token') {
-                $user = get_current_user_from_token();
-                if ($user) {
-                     send_json(['user' => $user]);
-                } else {
-                    send_json(['message' => 'Invalid or expired token.'], 401);
+                $headers = getallheaders();
+                if (!isset($headers['Authorization'])) {
+                    send_json(['message' => 'Authorization header missing.'], 401);
+                }
+
+                $authHeader = $headers['Authorization'];
+                list($jwt) = sscanf($authHeader, 'Bearer %s');
+
+                if (!$jwt) {
+                    send_json(['message' => 'Token not found.'], 401);
+                }
+                
+                try {
+                    $decoded = JWT::decode($jwt, new Key($jwt_key, 'HS256'));
+                    $userId = $decoded->data->userId;
+                    
+                    $result = $db->query("SELECT id, displayName, role, status FROM users WHERE id = $userId");
+                    if ($user = $result->fetch_assoc()) {
+                        send_json(['user' => $user]);
+                    } else {
+                         send_json(['message' => 'User from token not found.'], 401);
+                    }
+                } catch (Exception $e) {
+                    error_log("JWT Decode Error in auth.php check_token: " . $e->getMessage());
+                    send_json(['message' => 'Invalid or expired token: ' . $e->getMessage()], 401);
                 }
             }
             break;
