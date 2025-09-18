@@ -1,9 +1,6 @@
--- Q'Go Cargo Job File Management System
--- Database Schema for MySQL
-
-SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
-START TRANSACTION;
-SET time_zone = "+00:00";
+--
+-- Database: `u345343285_akifb`
+--
 
 -- --------------------------------------------------------
 
@@ -12,24 +9,16 @@ SET time_zone = "+00:00";
 --
 
 CREATE TABLE `users` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `email` VARCHAR(255) NOT NULL UNIQUE,
-  `password_hash` VARCHAR(255) NOT NULL,
-  `displayName` VARCHAR(100),
-  `role` ENUM('user', 'checker', 'admin', 'driver', 'warehouse_supervisor') NOT NULL DEFAULT 'user',
-  `status` ENUM('inactive', 'active', 'blocked') NOT NULL DEFAULT 'inactive',
-  `createdAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  `updatedAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
---
--- Seed the first admin user (IMPORTANT: Change password after first login)
--- Default password is "password"
---
-
-INSERT INTO `users` (`email`, `password_hash`, `displayName`, `role`, `status`) VALUES
-('admin@qgocargo.com', '$2y$10$3s.g3y/gQG1c8g1K4j.m.eC/jB.oF.Z.I.oE.Y.Z.eR.gH.iG.oF6', 'Admin', 'admin', 'active');
-
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `email` varchar(255) NOT NULL,
+  `password_hash` varchar(255) NOT NULL,
+  `displayName` varchar(100) NOT NULL,
+  `role` enum('user','checker','driver','warehouse_supervisor','admin') NOT NULL DEFAULT 'user',
+  `status` enum('active','inactive','blocked') NOT NULL DEFAULT 'inactive',
+  `createdAt` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `email` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -38,15 +27,17 @@ INSERT INTO `users` (`email`, `password_hash`, `displayName`, `role`, `status`) 
 --
 
 CREATE TABLE `clients` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `name` VARCHAR(255) NOT NULL,
-  `address` TEXT,
-  `contactPerson` VARCHAR(255),
-  `phone` VARCHAR(50),
-  `type` ENUM('Shipper', 'Consignee', 'Both') NOT NULL DEFAULT 'Shipper',
-  `createdAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  `updatedAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  `address` text DEFAULT NULL,
+  `contactPerson` varchar(150) DEFAULT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `type` enum('Shipper','Consignee','Both') NOT NULL DEFAULT 'Shipper',
+  `createdAt` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updatedAt` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -55,94 +46,82 @@ CREATE TABLE `clients` (
 --
 
 CREATE TABLE `job_files` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `jfn` VARCHAR(100) NOT NULL UNIQUE,
-  `d` DATE COMMENT 'Date',
-  `po` VARCHAR(100) COMMENT 'P.O. #',
-  `cl` JSON COMMENT 'Clearance Checkboxes',
-  `pt` JSON COMMENT 'Product Type Checkboxes',
-  `in` VARCHAR(100) COMMENT 'Invoice No.',
-  `bd` DATE COMMENT 'Billing Date',
-  `sm` VARCHAR(100) COMMENT 'Salesman',
-  `sh` VARCHAR(255) COMMENT 'Shipper Name',
-  `co` VARCHAR(255) COMMENT 'Consignee Name',
-  `mawb` VARCHAR(100) COMMENT 'MAWB/OBL/TCN No.',
-  `hawb` VARCHAR(100) COMMENT 'HAWB/HBL',
-  `ts` VARCHAR(100) COMMENT 'Teams of Shipping',
-  `or` VARCHAR(100) COMMENT 'Origin',
-  `pc` VARCHAR(100) COMMENT 'No. of Pieces',
-  `gw` VARCHAR(100) COMMENT 'Gross Weight',
-  `de` VARCHAR(100) COMMENT 'Destination',
-  `vw` VARCHAR(100) COMMENT 'Volume Weight',
-  `dsc` TEXT COMMENT 'Description',
-  `ca` VARCHAR(100) COMMENT 'Carrier/Shipping Line/Trucking Co',
-  `tn` VARCHAR(100) COMMENT 'Truck No./Driver''s Name',
-  `vn` VARCHAR(100) COMMENT 'Vessel''s Name',
-  `fv` VARCHAR(100) COMMENT 'Flight/Voyage No.',
-  `cn` VARCHAR(100) COMMENT 'Container No.',
-  `ch` JSON COMMENT 'Charges Table',
-  `re` TEXT COMMENT 'Remarks',
-  `pb` VARCHAR(100) COMMENT 'Prepared By',
-  `totalCost` DECIMAL(12, 3),
-  `totalSelling` DECIMAL(12, 3),
-  `totalProfit` DECIMAL(12, 3),
-  `createdBy` VARCHAR(100),
-  `lastUpdatedBy` VARCHAR(100),
-  `createdAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  `updatedAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `status` ENUM('pending', 'checked', 'approved', 'rejected', 'Out for Delivery') DEFAULT 'pending',
-  `checkedBy` VARCHAR(100),
-  `checkedAt` DATETIME,
-  `approvedBy` VARCHAR(100),
-  `approvedAt` DATETIME,
-  `rejectedBy` VARCHAR(100),
-  `rejectedAt` DATETIME,
-  `rejectionReason` TEXT,
-  `is_deleted` TINYINT(1) DEFAULT 0,
-  `deletedAt` DATETIME,
-  `deletedBy` VARCHAR(100)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `jfn` varchar(100) NOT NULL,
+  `d` date DEFAULT NULL,
+  `po` varchar(100) DEFAULT NULL,
+  `cl` text DEFAULT NULL,
+  `pt` text DEFAULT NULL,
+  `in` varchar(100) DEFAULT NULL,
+  `bd` date DEFAULT NULL,
+  `sm` varchar(150) DEFAULT NULL,
+  `sh` varchar(255) DEFAULT NULL,
+  `co` varchar(255) DEFAULT NULL,
+  `mawb` varchar(100) DEFAULT NULL,
+  `hawb` varchar(100) DEFAULT NULL,
+  `ts` varchar(100) DEFAULT NULL,
+  `or` varchar(100) DEFAULT NULL,
+  `pc` varchar(50) DEFAULT NULL,
+  `gw` varchar(50) DEFAULT NULL,
+  `de` varchar(100) DEFAULT NULL,
+  `vw` varchar(50) DEFAULT NULL,
+  `dsc` text DEFAULT NULL,
+  `ca` varchar(255) DEFAULT NULL,
+  `tn` varchar(100) DEFAULT NULL,
+  `vn` varchar(100) DEFAULT NULL,
+  `fv` varchar(100) DEFAULT NULL,
+  `cn` varchar(100) DEFAULT NULL,
+  `ch` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`ch`)),
+  `re` text DEFAULT NULL,
+  `pb` varchar(150) DEFAULT NULL,
+  `totalCost` decimal(10,3) DEFAULT 0.000,
+  `totalSelling` decimal(10,3) DEFAULT 0.000,
+  `totalProfit` decimal(10,3) DEFAULT 0.000,
+  `status` enum('pending','checked','approved','rejected') NOT NULL DEFAULT 'pending',
+  `createdBy` varchar(150) DEFAULT NULL,
+  `createdAt` timestamp NOT NULL DEFAULT current_timestamp(),
+  `lastUpdatedBy` varchar(150) DEFAULT NULL,
+  `updatedAt` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `checkedBy` varchar(150) DEFAULT NULL,
+  `checkedAt` datetime DEFAULT NULL,
+  `approvedBy` varchar(150) DEFAULT NULL,
+  `approvedAt` datetime DEFAULT NULL,
+  `rejectedBy` varchar(150) DEFAULT NULL,
+  `rejectedAt` datetime DEFAULT NULL,
+  `rejectionReason` text DEFAULT NULL,
+  `is_deleted` tinyint(1) NOT NULL DEFAULT 0,
+  `deletedBy` varchar(150) DEFAULT NULL,
+  `deletedAt` datetime DEFAULT NULL,
+  PRIMARY KEY (`jfn`),
+  UNIQUE KEY `in` (`in`),
+  UNIQUE KEY `mawb` (`mawb`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 -- --------------------------------------------------------
 
 --
--- Table structure for table `charge_descriptions`
+-- Table structure for table `deleted_job_files`
+--
+-- This is a simple copy of job_files for recycle bin functionality.
+-- You can also just use a flag in the main table.
+
+CREATE TABLE `deleted_job_files` LIKE `job_files`;
+
+-- --------------------------------------------------------
+
+--
+-- Composer vendor directory
+-- You'll need to run `composer install` on your server
+-- This creates the `vendor` folder.
+-- Make sure to upload the `composer.json` and `composer.lock` if it exists.
 --
 
-CREATE TABLE `charge_descriptions` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `description` varchar(255) NOT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `description` (`description`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 --
--- Inserting default data for `charge_descriptions`
+-- Add a first admin user if you want to.
+-- Replace 'admin@example.com' and 'your_strong_password'
+-- The password will be hashed.
+--
+-- INSERT INTO `users` (`email`, `password_hash`, `displayName`, `role`, `status`) VALUES
+-- ('admin@example.com', '$2y$10$YourHashedPasswordHere...', 'Admin User', 'admin', 'active');
 --
 
-INSERT INTO `charge_descriptions` (`description`) VALUES
-('Ex-works Charges:'),
-('Land/Air / Sea Freight:'),
-('Fuell Security / War Surcharge:'),
-('Formalities:'),
-('Delivery Order Fee:'),
-('Transportation Charges:'),
-('Inspection / Computer Print Charges:'),
-('Handling Charges:'),
-('Labor / Forklift Charges:'),
-('Documentation Charges:'),
-('Clearance Charges:'),
-('Customs Duty:'),
-('Terminal Handling Charges:'),
-('Legalization Charges:'),
-('Demurrage Charges:'),
-('Loading / Offloading Charges:'),
-('Destination Clearance Charges:'),
-('Packing Charges:'),
-('Port Charges:'),
-('Other Charges:'),
-('PAI Approval :'),
-('Insurance Fee :'),
-('EPA Charges :');
-
-COMMIT;
