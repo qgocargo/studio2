@@ -98,6 +98,7 @@ export function LoginForm() {
                 required
                 placeholder="Full Name"
                 disabled={loading}
+                suppressHydrationWarning
               />
             </div>
           )}
@@ -113,6 +114,7 @@ export function LoginForm() {
               required
               placeholder="Email address"
               disabled={loading}
+              suppressHydrationWarning
             />
           </div>
           <div>
@@ -127,6 +129,7 @@ export function LoginForm() {
               required
               placeholder="Password"
               disabled={loading}
+              suppressHydrationWarning
             />
           </div>
         </div>
@@ -140,7 +143,7 @@ export function LoginForm() {
         )}
 
         <div>
-          <Button className="w-full" type="submit" disabled={loading}>
+          <Button className="w-full" type="submit" disabled={loading} suppressHydrationWarning>
             {loading ? 'Submitting...' : isLogin ? 'Sign in' : 'Create an account'}
           </Button>
         </div>
@@ -154,6 +157,7 @@ export function LoginForm() {
           }}
           className="font-medium text-primary hover:text-primary/90 focus:outline-none"
           disabled={loading}
+          suppressHydrationWarning
         >
           {isLogin
             ? 'Create a new account'
