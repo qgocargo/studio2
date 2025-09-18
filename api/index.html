@@ -8,6 +8,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <style>
         :root { --theme-color: #4f46e5; }
         body {
@@ -409,7 +411,7 @@
     <div id="public-view-container"></div>
 
     <!-- Analytics Full-Screen Page -->
-    <div id="analytics-container" class="hidden">
+    <div id="analytics-container" class="hidden fixed inset-0 bg-gray-100 z-50 overflow-y-auto">
         <div class="container">
             <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2 no-print">
                 <h3 class="text-2xl font-bold">Analytics Dashboard</h3>
@@ -516,18 +518,13 @@
         
             <!-- Data Backup & Restore -->
             <div class="border rounded-lg p-4 mt-6">
-                <h4 class="text-lg font-semibold mb-3">Data Backup & Restore</h4>
-                <p class="text-sm text-gray-600 mb-4">Backup all job files and user data to a single JSON file. This can be used for offline storage or to restore the database to a previous state.</p>
+                <h4 class="text-lg font-semibold mb-3">Data Migration</h4>
+                <p class="text-sm text-gray-600 mb-4">Download all job files from the old Firebase database and convert them into a SQL file. You can then import this file into your new database using phpMyAdmin.</p>
                 <div class="flex flex-col sm:flex-row gap-4">
                     <button onclick="backupAllData()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded flex items-center justify-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
-                        Backup All Data
+                        Generate Migration SQL File
                     </button>
-                    <label for="restore-file-input" class="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded flex items-center justify-center gap-2 cursor-pointer">
-                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
-                         Restore From File
-                         <input type="file" id="restore-file-input" class="hidden" accept=".json" onchange="handleRestoreFile(event)">
-                    </label>
                 </div>
             </div>
         </div>
@@ -729,10 +726,13 @@
                 }
 
                 const responseData = await response.json().catch(() => {
-                    return { message: response.statusText };
+                    return { message: response.statusText, status: response.status };
                 });
 
                 if (!response.ok) {
+                     if (responseData.status === 500) {
+                        throw new Error("Internal Server Error. Check server logs.");
+                    }
                     throw new Error(responseData.message || 'An unknown API error occurred.');
                 }
                 return responseData;
@@ -867,6 +867,7 @@
                 const result = await fetchAPI(endpoint, { method, body: JSON.stringify(data) });
                 
                 showNotification("Job file saved successfully!");
+                await loadJobFiles(); // Refresh the list
                 loadJobFileById(result.jobFile.jfn);
             } catch(e) {
                 // error handled in fetchAPI
@@ -885,9 +886,8 @@
                 const result = await fetchAPI(`job-files.php?action=check&id=${encodeURIComponent(fileId)}`, { method: 'POST' });
                 if (!docId) {
                     populateFormFromData(result.jobFile);
-                } else {
-                    refreshOpenModals();
                 }
+                await refreshOpenModals();
                 showNotification("Job File Checked!");
             } catch(e) {
                  // error handled in fetchAPI
@@ -906,9 +906,8 @@
                 const result = await fetchAPI(`job-files.php?action=approve&id=${encodeURIComponent(fileId)}`, { method: 'POST' });
                 if (!docId) {
                     populateFormFromData(result.jobFile);
-                } else {
-                    refreshOpenModals();
                 }
+                await refreshOpenModals();
                 showNotification("Job File Approved!");
             } catch(e) {
                 // error handled in fetchAPI
@@ -930,18 +929,29 @@
                 } else {
                     jobFilesCache = [];
                 }
-                displayJobFiles(jobFilesCache);
                 updateStatusSummary('status-summary-main', jobFilesCache);
+                // If file manager is open, refresh it.
+                if (document.getElementById('file-manager-modal').classList.contains('visible')) {
+                    displayJobFiles(jobFilesCache);
+                }
             } catch(e) {
                 jobFilesCache = [];
-                if (typeof displayJobFiles === 'function') {
-                    displayJobFiles([]);
-                }
-                if (typeof updateStatusSummary === 'function') {
-                    updateStatusSummary('status-summary-main', []);
-                }
+                updateStatusSummary('status-summary-main', []);
+                displayJobFiles([]);
             }
         }
+        
+        async function refreshOpenModals() {
+            if (document.getElementById('file-manager-modal').classList.contains('visible')) {
+                await loadJobFiles();
+                // Re-apply filters and search
+                document.getElementById('search-bar').dispatchEvent(new Event('input'));
+            }
+            if (document.getElementById('analytics-container').style.display !== 'none') {
+                 await openAnalyticsDashboard();
+            }
+        }
+
 
         async function loadJobFileById(docId) {
              showLoader();
@@ -952,9 +962,8 @@
                     ch: JSON.parse(data.jobFile.ch || '[]'),
                     cl: JSON.parse(data.jobFile.cl || '[]'),
                     pt: JSON.parse(data.jobFile.pt || '[]')
-                }
+                };
                 populateFormFromData(file);
-                // logUserActivity(file.jfn);
                 document.getElementById('job-file-no').disabled = true;
                 closeAllModals();
                 showNotification("Job file loaded successfully.");
@@ -980,7 +989,7 @@
             } catch(e) { /* error handled in fetchAPI */ }
         }
         
-        // --- UI Functions (Mostly unchanged) ---
+        // --- UI Functions ---
         function showLogin() {
             document.getElementById('login-screen').style.display = 'flex';
             document.getElementById('app-container').style.display = 'none';
@@ -1000,10 +1009,8 @@
             if (currentUser.role === 'admin') {
                 document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
                 document.querySelectorAll('.checker-only').forEach(el => el.style.display = 'block');
-                document.getElementById('checker-info-banner').style.display = 'block';
             } else if (currentUser.role === 'checker') {
                 document.querySelectorAll('.checker-only').forEach(el => el.style.display = 'block');
-                document.getElementById('checker-info-banner').style.display = 'block';
             }
             
             clearForm();
@@ -1133,7 +1140,9 @@
             populateTable();
             calculate();
             
-            document.getElementById('prepared-by').value = currentUser ? currentUser.displayName : '';
+            if (currentUser) {
+                document.getElementById('prepared-by').value = currentUser.displayName;
+            }
             
             document.getElementById('created-by-info').textContent = '';
             document.getElementById('last-updated-by-info').textContent = '';
@@ -1249,14 +1258,61 @@
         }
 
         function displayJobFiles(files) {
-            // Placeholder for now
+            currentFilteredJobs = files;
+            const list = document.getElementById('job-files-list');
+            if(!list) return;
+            list.innerHTML = '';
+            if (files.length === 0) {
+                list.innerHTML = `<p class="text-center text-gray-500">No job files found.</p>`;
+                return;
+            }
+            files.forEach(file => {
+                const profit = (file.totalProfit || 0);
+                const profitColor = profit >= 0 ? 'text-green-600' : 'text-red-600';
+                const statusColors = {
+                    pending: 'bg-gray-200 text-gray-800',
+                    checked: 'bg-blue-200 text-blue-800',
+                    approved: 'bg-green-200 text-green-800',
+                    rejected: 'bg-red-200 text-red-800'
+                };
+                const statusClass = statusColors[file.status] || statusColors.pending;
+
+                const fileDiv = document.createElement('div');
+                fileDiv.className = 'p-3 border rounded-lg hover:bg-gray-50 grid grid-cols-12 gap-2 items-center';
+                fileDiv.innerHTML = `
+                    <div class="col-span-12 md:col-span-3">
+                        <p class="font-bold text-gray-800">${file.jfn}</p>
+                        <p class="text-sm text-gray-600">${file.sh || 'No Shipper'}</p>
+                    </div>
+                    <div class="col-span-4 md:col-span-2 text-sm">
+                        <p class="text-gray-500">Date</p>
+                        <p class="font-medium">${file.d || 'N/A'}</p>
+                    </div>
+                    <div class="col-span-4 md:col-span-2 text-sm">
+                        <p class="text-gray-500">Salesman</p>
+                        <p class="font-medium">${file.sm || 'N/A'}</p>
+                    </div>
+                    <div class="col-span-4 md:col-span-1 text-sm">
+                         <p class="text-gray-500">Profit</p>
+                         <p class="font-bold ${profitColor}">${profit.toFixed(3)}</p>
+                    </div>
+                    <div class="col-span-4 md:col-span-1 text-sm text-center">
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full ${statusClass}">${file.status}</span>
+                    </div>
+                    <div class="col-span-12 md:col-span-3 flex justify-end items-center gap-2">
+                        <button onclick="loadJobFileById('${file.jfn}')" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-3 rounded text-sm">Open</button>
+                    </div>
+                `;
+                list.appendChild(fileDiv);
+            });
         }
         function updateStatusSummary(elementId, files) {
             const container = document.getElementById(elementId);
             if(!container) return;
 
             const counts = files.reduce((acc, file) => {
-                acc[file.status] = (acc[file.status] || 0) + 1;
+                const status = file.status || 'pending';
+                acc[status] = (acc[status] || 0) + 1;
                 return acc;
             }, { pending: 0, checked: 0, approved: 0, rejected: 0 });
 
@@ -1269,6 +1325,199 @@
                 </div>
             `;
         }
+
+        async function openFileManager() {
+            openModal('file-manager-modal');
+            await loadJobFiles();
+            displayJobFiles(jobFilesCache);
+        }
+
+        // --- Analytics ---
+        async function openAnalyticsDashboard() {
+            showLoader();
+            try {
+                analyticsDataCache = await fetchAPI('analytics.php');
+                renderAnalytics(analyticsDataCache);
+                document.getElementById('analytics-container').style.display = 'block';
+            } catch (e) {
+                showNotification("Could not load analytics data.", true);
+            } finally {
+                hideLoader();
+            }
+        }
+
+        function renderAnalytics(data) {
+            const body = document.getElementById('analytics-body');
+            body.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <h4 class="font-semibold text-gray-500">Total Jobs</h4>
+                        <p class="text-3xl font-bold">${data.summary.totalJobs}</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <h4 class="font-semibold text-gray-500">Total Profit</h4>
+                        <p class="text-3xl font-bold text-green-600">${parseFloat(data.summary.totalProfit).toLocaleString('en-US', {minimumFractionDigits: 3})}</p>
+                    </div>
+                     <div class="bg-white p-4 rounded-lg shadow">
+                        <h4 class="font-semibold text-gray-500">Total Cost</h4>
+                        <p class="text-3xl font-bold text-red-600">${parseFloat(data.summary.totalCost).toLocaleString('en-US', {minimumFractionDigits: 3})}</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <h4 class="font-semibold text-gray-500">Total Selling</h4>
+                        <p class="text-3xl font-bold text-blue-600">${parseFloat(data.summary.totalSelling).toLocaleString('en-US', {minimumFractionDigits: 3})}</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <h4 class="text-lg font-bold mb-4">Monthly Profit</h4>
+                        <canvas id="profit-chart"></canvas>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <h4 class="text-lg font-bold mb-4">Jobs by Salesman</h4>
+                        <div id="salesman-table-container"></div>
+                    </div>
+                </div>
+            `;
+
+            // Render Chart
+            const ctx = document.getElementById('profit-chart').getContext('2d');
+            if (profitChartInstance) {
+                profitChartInstance.destroy();
+            }
+            profitChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.monthlyProfit.map(d => d.month),
+                    datasets: [{
+                        label: 'Total Profit',
+                        data: data.monthlyProfit.map(d => d.totalProfit),
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        fill: true,
+                        tension: 0.1
+                    }]
+                }
+            });
+
+            // Render Table
+            const tableContainer = document.getElementById('salesman-table-container');
+            let tableHTML = `<table class="w-full analytics-table"><thead><tr><th>Salesman</th><th>Job Count</th><th>Total Profit</th></tr></thead><tbody>`;
+            data.salesmanPerformance.forEach(s => {
+                tableHTML += `<tr><td>${s.salesman}</td><td>${s.jobCount}</td><td>${parseFloat(s.totalProfit).toFixed(3)}</td></tr>`;
+            });
+            tableHTML += `</tbody></table>`;
+            tableContainer.innerHTML = tableHTML;
+        }
+
+        function closeAnalyticsDashboard() {
+            document.getElementById('analytics-container').style.display = 'none';
+        }
+        function printAnalytics() {
+            window.print();
+        }
+
+        // --- Data Migration (Firebase to SQL) ---
+        async function backupAllData() {
+            showLoader();
+            try {
+                const firebaseConfig = {
+                    apiKey: prompt("Enter Firebase API Key"),
+                    authDomain: prompt("Enter Firebase Auth Domain"),
+                    projectId: prompt("Enter Firebase Project ID"),
+                };
+
+                if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+                    showNotification("Firebase config is required for migration.", true);
+                    return;
+                }
+
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+                const db = firebase.firestore();
+                const jobFilesSnapshot = await db.collection("jobFiles").get();
+                const jobFiles = jobFilesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                let sqlContent = "START TRANSACTION;\n\n";
+                sqlContent += "DELETE FROM `job_files`;\n\n";
+
+                const escapeSQL = (val) => {
+                    if (val === null || val === undefined) return 'NULL';
+                    val = val.toString().replace(/'/g, "''");
+                    return `'${val}'`;
+                };
+
+                for (const file of jobFiles) {
+                    // Sanitize and prepare data
+                    const values = {
+                        jfn: escapeSQL(file.id),
+                        d: escapeSQL(file.d),
+                        po: escapeSQL(file.po),
+                        cl: escapeSQL(JSON.stringify(file.cl || [])),
+                        pt: escapeSQL(JSON.stringify(file.pt || [])),
+                        'in': escapeSQL(file.in), // 'in' is a keyword
+                        bd: escapeSQL(file.bd),
+                        sm: escapeSQL(file.sm),
+                        sh: escapeSQL(file.sh),
+                        co: escapeSQL(file.co),
+                        mawb: escapeSQL(file.mawb),
+                        hawb: escapeSQL(file.hawb),
+                        ts: escapeSQL(file.ts),
+                        'or': escapeSQL(file.or),
+                        pc: escapeSQL(file.pc),
+                        gw: escapeSQL(file.gw),
+                        de: escapeSQL(file.de),
+                        vw: escapeSQL(file.vw),
+                        dsc: escapeSQL(file.dsc),
+                        ca: escapeSQL(file.ca),
+                        tn: escapeSQL(file.tn),
+                        vn: escapeSQL(file.vn),
+                        fv: escapeSQL(file.fv),
+                        cn: escapeSQL(file.cn),
+                        ch: escapeSQL(JSON.stringify(file.ch || [])),
+                        re: escapeSQL(file.re),
+                        pb: escapeSQL(file.pb),
+                        status: escapeSQL(file.status || 'pending'),
+                        createdBy: escapeSQL(file.createdBy),
+                        createdAt: file.createdAt ? escapeSQL(new Date(file.createdAt.seconds * 1000).toISOString().slice(0, 19).replace('T', ' ')) : 'NULL',
+                        lastUpdatedBy: escapeSQL(file.lastUpdatedBy),
+                        updatedAt: file.updatedAt ? escapeSQL(new Date(file.updatedAt.seconds * 1000).toISOString().slice(0, 19).replace('T', ' ')) : 'NOW()',
+                        checkedBy: escapeSQL(file.checkedBy),
+                        checkedAt: file.checkedAt ? escapeSQL(new Date(file.checkedAt.seconds * 1000).toISOString().slice(0, 19).replace('T', ' ')) : 'NULL',
+                        approvedBy: escapeSQL(file.approvedBy),
+                        approvedAt: file.approvedAt ? escapeSQL(new Date(file.approvedAt.seconds * 1000).toISOString().slice(0, 19).replace('T', ' ')) : 'NULL',
+                        rejectedBy: escapeSQL(file.rejectedBy),
+                        rejectedAt: file.rejectedAt ? escapeSQL(new Date(file.rejectedAt.seconds * 1000).toISOString().slice(0, 19).replace('T', ' ')) : 'NULL',
+                        rejectionReason: escapeSQL(file.rejectionReason),
+                        totalCost: parseFloat(file.totalCost) || 0,
+                        totalSelling: parseFloat(file.totalSelling) || 0,
+                        totalProfit: parseFloat(file.totalProfit) || 0,
+                        is_deleted: 0
+                    };
+
+                    const columns = Object.keys(values).map(c => `\`${c}\``).join(', ');
+                    const rowValues = Object.values(values).join(', ');
+                    sqlContent += `INSERT INTO \`job_files\` (${columns}) VALUES (${rowValues});\n`;
+                }
+
+                sqlContent += "\nCOMMIT;";
+                
+                const blob = new Blob([sqlContent], { type: 'application/sql' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = 'migration.sql';
+                link.click();
+
+                showNotification('SQL migration file generated successfully!', false);
+            } catch (err) {
+                console.error("Migration failed:", err);
+                showNotification(`Migration failed: ${err.message}`, true);
+            } finally {
+                hideLoader();
+            }
+        }
+
 
         // --- App Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
@@ -1297,21 +1546,32 @@
 
             document.getElementById('logout-btn').addEventListener('click', handleLogout);
             document.getElementById('admin-panel-btn').addEventListener('click', () => openModal('admin-panel-modal'));
+            
+            // Search and filter for file manager
+            document.getElementById('search-bar').addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                const filtered = jobFilesCache.filter(file => 
+                    Object.values(file).some(val => val && val.toString().toLowerCase().includes(searchTerm))
+                );
+                displayJobFiles(filtered);
+            });
 
 
-            window.openAnalyticsDashboard = () => openModal('analytics-container');
-            window.closeAnalyticsDashboard = () => closeModal('analytics-container');
-            window.openFileManager = () => openModal('file-manager-modal');
+            window.openAnalyticsDashboard = openAnalyticsDashboard;
+            window.closeAnalyticsDashboard = closeAnalyticsDashboard;
+            window.printAnalytics = printAnalytics;
+            window.openFileManager = openFileManager;
             window.openClientManager = () => openModal('client-manager-modal');
             window.saveJobFile = saveJobFile;
             window.clearForm = clearForm;
             window.printPage = () => window.print();
             window.closeModal = closeModal;
-            window.saveUserChanges = () => showNotification("Not implemented");
-            window.generateRemarks = () => showNotification("Not implemented");
-            window.suggestCharges = () => showNotification("Not implemented");
-            window.backupAllData = () => showNotification("Not implemented");
+            window.saveUserChanges = () => showNotification("Not implemented yet.", true);
+            window.generateRemarks = () => showNotification("AI features not implemented yet.", true);
+            window.suggestCharges = () => showNotification("AI features not implemented yet.", true);
+            window.backupAllData = backupAllData;
             window.addChargeRow = addChargeRow;
+            window.loadJobFileById = loadJobFileById;
         });
 
     </script>
