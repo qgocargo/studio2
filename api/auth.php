@@ -33,6 +33,7 @@ function get_current_user_from_token() {
     }
 
     try {
+        // THIS IS THE CORRECTED LINE
         $decoded = JWT::decode($jwt, new Key($jwt_key, 'HS256'));
         $userId = $decoded->data->userId;
         
@@ -43,7 +44,7 @@ function get_current_user_from_token() {
         }
         return null;
     } catch (Exception $e) {
-        error_log("JWT Decode Error: " . $e->getMessage());
+        error_log("JWT Decode Error in auth.php: " . $e->getMessage());
         return null;
     }
 }
