@@ -29,6 +29,7 @@ function auth_guard() {
         send_json(['message' => 'Token not found.'], 401);
     }
     try {
+        // THE FIX IS HERE: Added the third argument to specify the allowed algorithm.
         $decoded = JWT::decode($jwt, new Key($jwt_key, 'HS256'));
         $userId = $decoded->data->userId;
         $db = DB::getInstance()->getConnection();
