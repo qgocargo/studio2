@@ -1,7 +1,7 @@
 
 "use server";
 
-import { auth } from "@/lib/firebase/firebase";
+import { auth } from "@/lib/firebase/firebase"; // Import the single auth instance
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { redirect } from "next/navigation";
 import { cookies } from 'next/headers';
@@ -49,8 +49,10 @@ export async function signUp(prevState: any, formData: FormData) {
     }
 
     try {
+        // We use the same 'auth' instance for sign up
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         // Here you would typically also save the user's name to Firestore.
+        // For now, we'll just create the session
         await createSession(userCredential.user.uid);
         redirect("/");
     } catch (error: any) {
