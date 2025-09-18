@@ -3,6 +3,6 @@ import './iframe.css';
 
 export default function HomePage() {
   return (
-    <iframe src="/api/index.html" title="HTML Content" />
+    <iframe src="/api/DATA.HTML" title="HTML Content" />
   );
 }
