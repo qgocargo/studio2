@@ -797,8 +797,13 @@
             }
             currentUser = user;
             showApp();
-            loadJobFiles();
-            loadClients();
+            showNotification("Login successful!", false);
+            loadInitialData();
+        }
+
+        async function loadInitialData() {
+            await loadJobFiles();
+            await loadClients();
         }
         
         async function handleForgotPassword() {
@@ -925,12 +930,16 @@
         async function loadJobFiles() {
             try {
                 const data = await fetchAPI('job-files.php?action=get_all');
-                jobFilesCache = data.jobFiles.map(file => ({
-                    ...file,
-                    ch: JSON.parse(file.ch || '[]'),
-                    cl: JSON.parse(file.cl || '[]'),
-                    pt: JSON.parse(file.pt || '[]')
-                }));
+                if (data && data.jobFiles) {
+                    jobFilesCache = data.jobFiles.map(file => ({
+                        ...file,
+                        ch: JSON.parse(file.ch || '[]'),
+                        cl: JSON.parse(file.cl || '[]'),
+                        pt: JSON.parse(file.pt || '[]')
+                    }));
+                } else {
+                    jobFilesCache = [];
+                }
                 displayJobFiles(jobFilesCache);
                 updateStatusSummary('status-summary-main', jobFilesCache);
             } catch(e) {
@@ -960,6 +969,19 @@
             } finally {
                 hideLoader();
             }
+        }
+        
+        async function loadClients() {
+            try {
+                const data = await fetchAPI('clients.php?action=get_all');
+                if (data && data.clients) {
+                    clientsCache = data.clients;
+                    clientsCache.sort((a, b) => a.name.localeCompare(b.name));
+                } else {
+                    clientsCache = [];
+                }
+                displayClients(clientsCache);
+            } catch(e) { /* error handled in fetchAPI */ }
         }
         
         // --- UI Functions (Mostly unchanged) ---
