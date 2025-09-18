@@ -40,42 +40,73 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import Image from "next/image";
+import { db } from "@/lib/firebase/firebase";
+import { collection, getDocs, getDoc, doc, query, where } from "firebase/firestore";
 
 
-async function getUser() {
+async function getDashboardData() {
   const cookieStore = cookies();
   const sessionCookie = cookieStore.get("__session");
 
   if (!sessionCookie) {
-    return null;
+    return { user: null, statusSummary: null };
   }
-
-  // In a real app, you would verify the session cookie with the server (e.g., Firebase Admin SDK)
-  // and fetch user details from your database.
-  // For this prototype, we'll assume the cookie value is the user's UID and return a mock user.
-  const user = {
-    uid: sessionCookie.value,
-    displayName: "Akif Boss", // Replace with actual data fetch later
-    role: "admin", // Replace with actual data fetch later
+  
+  const uid = sessionCookie.value;
+  let user = null;
+  let statusSummary = {
+    approved: 0,
+    rejected: 0,
+    checked: 0,
+    pending: 0,
   };
 
-  return user;
+  try {
+     // Fetch user data
+    const userDocRef = doc(db, "users", uid);
+    const userDoc = await getDoc(userDocRef);
+
+    if (userDoc.exists()) {
+      user = {
+        uid,
+        displayName: userDoc.data().displayName || 'No Name',
+        role: userDoc.data().role || 'user',
+      };
+    } else {
+       // If user doc doesn't exist, create a mock one but log the issue
+      console.warn(`User document not found for UID: ${uid}. Using default values.`);
+      user = { uid, displayName: "New User", role: "user" };
+    }
+
+    // Fetch job files to calculate status summary
+    const jobfilesCollection = collection(db, "jobfiles");
+    const jobfilesSnapshot = await getDocs(jobfilesCollection);
+    
+    jobfilesSnapshot.forEach((jobfileDoc) => {
+      const status = jobfileDoc.data().status?.toLowerCase();
+      if (status in statusSummary) {
+        statusSummary[status as keyof typeof statusSummary]++;
+      }
+    });
+
+  } catch (error) {
+    console.error("Error fetching dashboard data:", error);
+    // Return default/empty values in case of error, but keep user logged in if they have a cookie
+    if (!user && uid) {
+      user = { uid, displayName: "Error Loading User", role: "user" };
+    }
+  }
+
+
+  return { user, statusSummary };
 }
 
 export default async function HomePage() {
-  const user = await getUser();
+  const { user, statusSummary } = await getDashboardData();
 
   if (!user) {
     redirect("/login");
   }
-
-  // Mock data for status summary. We will fetch this from Firestore later.
-  const statusSummary = {
-    approved: 125,
-    rejected: 12,
-    checked: 45,
-    pending: 30,
-  };
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
@@ -240,7 +271,7 @@ export default async function HomePage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-green-900">
-                  {statusSummary.approved}
+                  {statusSummary?.approved}
                 </div>
               </CardContent>
             </Card>
@@ -252,7 +283,7 @@ export default async function HomePage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-red-900">
-                  {statusSummary.rejected}
+                  {statusSummary?.rejected}
                 </div>
               </CardContent>
             </Card>
@@ -264,7 +295,7 @@ export default async function HomePage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-blue-900">
-                  {statusSummary.checked}
+                  {statusSummary?.checked}
                 </div>
               </CardContent>
             </Card>
@@ -276,7 +307,7 @@ export default async function HomePage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-yellow-900">
-                  {statusSummary.pending}
+                  {statusSummary?.pending}
                 </div>
               </CardContent>
             </Card>
