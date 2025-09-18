@@ -516,18 +516,13 @@
         
             <!-- Data Backup & Restore -->
             <div class="border rounded-lg p-4 mt-6">
-                <h4 class="text-lg font-semibold mb-3">Data Backup & Restore</h4>
-                <p class="text-sm text-gray-600 mb-4">Backup all job files and user data to a single JSON file. This can be used for offline storage or to restore the database to a previous state.</p>
+                <h4 class="text-lg font-semibold mb-3">Data Migration</h4>
+                <p class="text-sm text-gray-600 mb-4">Generate a SQL file from your old Firebase data. You can import this file into your new database using phpMyAdmin to migrate all your job files.</p>
                 <div class="flex flex-col sm:flex-row gap-4">
                     <button onclick="backupAllData()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded flex items-center justify-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
-                        Backup All Data
+                        Generate SQL Migration File
                     </button>
-                    <label for="restore-file-input" class="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded flex items-center justify-center gap-2 cursor-pointer">
-                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
-                         Restore From File
-                         <input type="file" id="restore-file-input" class="hidden" accept=".json" onchange="handleRestoreFile(event)">
-                    </label>
                 </div>
             </div>
         </div>
@@ -1915,140 +1910,108 @@
             }
         }
 
+        function escapeSql(value) {
+            if (value === null || typeof value === 'undefined') {
+                return 'NULL';
+            }
+            if (typeof value === 'number') {
+                return value;
+            }
+            // Basic escaping, replace single quotes with two single quotes
+            return "'" + String(value).replace(/'/g, "''") + "'";
+        }
+
         async function backupAllData() {
             if (currentUser.role !== 'admin') {
-                showNotification("Access denied. Only admins can perform backups.", true);
+                showNotification("Access denied. Only admins can perform data migration.", true);
                 return;
             }
             showLoader();
             try {
-                const jobFilesQuery = query(collection(db, 'jobfiles'));
-                const usersQuery = query(collection(db, 'users'));
+                // jobFilesCache should be populated from the active Firebase connection
+                if (jobFilesCache.length === 0) {
+                    showNotification("No Firebase data loaded to migrate. Please ensure you are logged into the old system.", true);
+                    hideLoader();
+                    return;
+                }
 
-                const jobFilesSnapshot = await getDocs(jobFilesQuery);
-                const usersSnapshot = await getDocs(usersQuery);
+                let sqlContent = 'INSERT INTO `job_files` (`jfn`, `d`, `po`, `cl`, `pt`, `in`, `bd`, `sm`, `sh`, `co`, `mawb`, `hawb`, `ts`, `or`, `pc`, `gw`, `de`, `vw`, `dsc`, `ca`, `tn`, `vn`, `fv`, `cn`, `ch`, `re`, `pb`, `createdBy`, `createdAt`, `lastUpdatedBy`, `updatedAt`, `status`, `checkedBy`, `checkedAt`, `approvedBy`, `approvedAt`, `rejectedBy`, `rejectedAt`, `rejectionReason`, `totalCost`, `totalSelling`, `totalProfit`) VALUES\n';
 
-                const jobfilesData = jobFilesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                const rows = jobFilesCache.map(job => {
+                    const toSqlDate = (timestamp) => timestamp ? new Date(timestamp.seconds * 1000).toISOString().slice(0, 19).replace('T', ' ') : null;
+                    
+                    const values = [
+                        escapeSql(job.jfn),
+                        escapeSql(job.d),
+                        escapeSql(job.po),
+                        escapeSql(JSON.stringify(job.cl || [])),
+                        escapeSql(JSON.stringify(job.pt || [])),
+                        escapeSql(job.in),
+                        escapeSql(job.bd),
+                        escapeSql(job.sm),
+                        escapeSql(job.sh),
+                        escapeSql(job.co),
+                        escapeSql(job.mawb),
+                        escapeSql(job.hawb),
+                        escapeSql(job.ts),
+                        escapeSql(job.or),
+                        escapeSql(job.pc),
+                        escapeSql(job.gw),
+                        escapeSql(job.de),
+                        escapeSql(job.vw),
+                        escapeSql(job.dsc),
+                        escapeSql(job.ca),
+                        escapeSql(job.tn),
+                        escapeSql(job.vn),
+                        escapeSql(job.fv),
+                        escapeSql(job.cn),
+                        escapeSql(JSON.stringify(job.ch || [])),
+                        escapeSql(job.re),
+                        escapeSql(job.pb),
+                        escapeSql(job.createdBy),
+                        escapeSql(toSqlDate(job.createdAt)),
+                        escapeSql(job.lastUpdatedBy),
+                        escapeSql(toSqlDate(job.updatedAt)),
+                        escapeSql(job.status),
+                        escapeSql(job.checkedBy),
+                        escapeSql(toSqlDate(job.checkedAt)),
+                        escapeSql(job.approvedBy),
+                        escapeSql(toSqlDate(job.approvedAt)),
+                        escapeSql(job.rejectedBy),
+                        escapeSql(toSqlDate(job.rejectedAt)),
+                        escapeSql(job.rejectionReason),
+                        job.totalCost || 0,
+                        job.totalSelling || 0,
+                        job.totalProfit || 0,
+                    ];
+                    return `(${values.join(', ')})`;
+                });
 
-                const backupData = {
-                    version: "1.0",
-                    createdAt: new Date().toISOString(),
-                    data: {
-                        jobfiles: jobfilesData,
-                        users: usersData
-                    }
-                };
-
-                const jsonString = JSON.stringify(backupData, (key, value) => {
-                    if (value && typeof value.toDate === 'function') {
-                        return value.toDate().toISOString();
-                    }
-                    return value;
-                }, 2);
-
-                const blob = new Blob([jsonString], { type: 'application/json' });
+                sqlContent += rows.join(',\n') + ';\n';
+                
+                const blob = new Blob([sqlContent], { type: 'application/sql' });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 const date = new Date().toISOString().slice(0, 10);
-                link.download = `qgo-cargo-backup-${date}.json`;
+                link.download = `qgo-cargo-migration-${date}.sql`;
                 link.href = url;
                 link.click();
                 URL.revokeObjectURL(url);
 
-                showNotification("Backup created and download started successfully.");
+                showNotification("SQL migration file generated successfully.");
 
             } catch (error) {
-                console.error("Backup failed:", error);
-                showNotification("An error occurred during backup.", true);
+                console.error("Migration file generation failed:", error);
+                showNotification("An error occurred during SQL file generation.", true);
             } finally {
                 hideLoader();
             }
         }
 
         async function handleRestoreFile(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            if (currentUser.role !== 'admin') {
-                showNotification("Access denied. Only admins can restore data.", true);
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const content = e.target.result;
-                try {
-                    const backupData = JSON.parse(content);
-
-                    if (!backupData.data || !backupData.data.jobfiles || !backupData.data.users) {
-                        showNotification("Invalid backup file format.", true);
-                        return;
-                    }
-
-                    const jobFileCount = backupData.data.jobfiles.length;
-                    const userCount = backupData.data.users.length;
-
-                    const modal = document.getElementById('confirm-modal');
-                    modal.querySelector('#confirm-title').textContent = 'Confirm Data Restore';
-                    modal.querySelector('#confirm-message').innerHTML = `
-                        <p>You are about to restore <b>${jobFileCount} job files</b> and <b>${userCount} users</b> from the selected file.</p>
-                        <p class="mt-2">This will <b class="underline">overwrite any existing data</b> with the content from the backup file. Documents not in the backup file will not be affected.</p>
-                        <p class="mt-2 text-red-600 font-bold">This action cannot be undone. Are you sure you want to proceed?</p>
-                    `;
-                    modal.querySelector('#confirm-ok').className = 'bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded';
-                    openModal('confirm-modal');
-
-                    const okButton = modal.querySelector('#confirm-ok');
-                    const cancelButton = modal.querySelector('#confirm-cancel');
-
-                    const onOk = async () => {
-                        closeConfirm();
-                        showLoader();
-                        try {
-                            const restoreBatch = writeBatch(db);
-                            
-                            backupData.data.jobfiles.forEach(jobFile => {
-                                const docRef = doc(db, 'jobfiles', jobFile.id);
-                                const { id, ...dataToRestore } = jobFile;
-                                restoreBatch.set(docRef, dataToRestore);
-                            });
-
-                            backupData.data.users.forEach(user => {
-                                const docRef = doc(db, 'users', user.id);
-                                const { id, ...dataToRestore } = user;
-                                restoreBatch.set(docRef, dataToRestore);
-                            });
-
-                            await restoreBatch.commit();
-                            showNotification("Data restored successfully! The page will now reload.");
-                            setTimeout(() => window.location.reload(), 2000);
-
-                        } catch (error) {
-                            console.error("Restore failed:", error);
-                            showNotification("An error occurred during restore. Data may be partially restored.", true);
-                        } finally {
-                            hideLoader();
-                        }
-                    };
-
-                    const closeConfirm = () => {
-                        closeModal('confirm-modal');
-                        okButton.removeEventListener('click', onOk);
-                    };
-
-                    okButton.addEventListener('click', onOk, { once: true });
-                    cancelButton.addEventListener('click', closeConfirm, { once: true });
-
-                } catch (error) {
-                    console.error("Error reading restore file:", error);
-                    showNotification("Failed to read or parse the backup file. Please ensure it's a valid JSON backup.", true);
-                } finally {
-                    event.target.value = '';
-                }
-            };
-
-            reader.readAsText(file);
+            // This is deprecated in favor of SQL migration
+            showNotification("Restore from JSON is disabled. Please use the SQL migration tool.", true);
+            event.target.value = '';
         }
 
 
@@ -3389,3 +3352,5 @@
     </script>
 </body>
 </html>
+
+  
