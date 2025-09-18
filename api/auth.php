@@ -33,7 +33,6 @@ function get_current_user_from_token() {
     }
 
     try {
-        // Note: The Key object is now directly available because of autoload.php
         $decoded = JWT::decode($jwt, new Key($jwt_key, 'HS256'));
         $userId = $decoded->data->userId;
         
@@ -52,7 +51,7 @@ function get_current_user_from_token() {
 // --- Main Logic ---
 $db = DB::getInstance()->getConnection();
 $action = $_GET['action'] ?? '';
-$jwt_key = 'QgoCargoApiSecretKey@2024!_S$uper_S#ecure'; // Secure key has been set.
+$jwt_key = 'QgoCargoApiSecretKey@2024!_S$uper_S#ecure';
 
 try {
     switch ($_SERVER['REQUEST_METHOD']) {

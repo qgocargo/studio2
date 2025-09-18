@@ -708,7 +708,7 @@
         let fileIdToReject = null; 
         let profitChartInstance = null;
         let isLoginView = true;
-        const API_BASE_URL = './'; // Since index.html is in the same folder as PHP files
+        const API_BASE_URL = './';
 
         // --- API Helper ---
         async function fetchAPI(endpoint, options = {}) {
@@ -724,12 +724,11 @@
 
                 const response = await fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers });
 
-                if (response.status === 204) { // No Content
+                if (response.status === 204) {
                     return null;
                 }
 
                 const responseData = await response.json().catch(() => {
-                    // If JSON parsing fails, maybe the response was empty or not JSON
                     return { message: response.statusText };
                 });
 
@@ -754,9 +753,9 @@
                     body: JSON.stringify({ email, password, displayName })
                 });
                 showNotification(data.message || "Account created! Please wait for admin approval.", false);
-                toggleAuthView(true); // Switch to login view
+                toggleAuthView(true);
             } catch (e) {
-                // error is already shown by fetchAPI
+                // error is shown by fetchAPI
             } finally {
                 hideLoader();
             }
@@ -774,7 +773,7 @@
                     setCurrentUser(data.user);
                 }
             } catch(e) {
-                // error is already shown by fetchAPI
+                // error is shown by fetchAPI
             } finally {
                 hideLoader();
             }
@@ -802,12 +801,20 @@
         }
 
         async function loadInitialData() {
-            await loadJobFiles();
-            await loadClients();
+            showLoader();
+            try {
+                await Promise.all([
+                    loadJobFiles(),
+                    loadClients()
+                ]);
+            } catch(e) {
+                console.error("Failed to load initial data", e);
+            } finally {
+                hideLoader();
+            }
         }
         
         async function handleForgotPassword() {
-            // This needs implementation in auth.php
             showNotification("Forgot password functionality is not yet implemented.", true);
         }
 
@@ -837,23 +844,6 @@
                 }
             }
         }
-        
-        // --- DATA.HTML Backup/Migration Function
-        function escapeSql(value) {
-            if (value === null || typeof value === 'undefined') {
-                return 'NULL';
-            }
-            if (typeof value === 'number') {
-                return value;
-            }
-            return "'" + String(value).replace(/'/g, "''") + "'";
-        }
-
-        async function backupAllData() {
-            showNotification("Please login to the old Firebase system to generate the migration file.", true);
-            alert("This function is for migrating data from the old Firebase system. Please open the old 'DATA.html' file, log in, and use the 'Generate SQL Migration File' button there.");
-        }
-
 
         // --- Data Handling ---
         async function saveJobFile() {
@@ -944,8 +934,12 @@
                 updateStatusSummary('status-summary-main', jobFilesCache);
             } catch(e) {
                 jobFilesCache = [];
-                displayJobFiles([]);
-                updateStatusSummary('status-summary-main', []);
+                if (typeof displayJobFiles === 'function') {
+                    displayJobFiles([]);
+                }
+                if (typeof updateStatusSummary === 'function') {
+                    updateStatusSummary('status-summary-main', []);
+                }
             }
         }
 
@@ -960,7 +954,7 @@
                     pt: JSON.parse(data.jobFile.pt || '[]')
                 }
                 populateFormFromData(file);
-                logUserActivity(file.jfn);
+                // logUserActivity(file.jfn);
                 document.getElementById('job-file-no').disabled = true;
                 closeAllModals();
                 showNotification("Job file loaded successfully.");
@@ -980,7 +974,9 @@
                 } else {
                     clientsCache = [];
                 }
-                displayClients(clientsCache);
+                if(typeof displayClients === 'function') {
+                    displayClients(clientsCache);
+                }
             } catch(e) { /* error handled in fetchAPI */ }
         }
         
@@ -1070,6 +1066,8 @@
                 });
             };
 
+            clearForm();
+            
             setVal('date', data.d); setVal('po-number', data.po); setVal('job-file-no', data.jfn);
             setVal('invoice-no', data.in); setVal('billing-date', data.bd);
             setVal('salesman', data.sm); setVal('shipper-name', data.sh); setVal('consignee-name', data.co);
@@ -1091,13 +1089,6 @@
             createdInfo.textContent = data.createdBy ? `Created by: ${data.createdBy} on ${toLocalDate(data.createdAt)}` : '';
             updatedInfo.textContent = data.lastUpdatedBy ? `Last updated by: ${data.lastUpdatedBy} on ${toLocalDateTime(data.updatedAt)}` : '';
             
-            document.getElementById('checked-stamp').style.display = 'none';
-            document.getElementById('approved-stamp').style.display = 'none';
-            document.getElementById('rejected-stamp').style.display = 'none';
-            document.getElementById('rejection-banner').style.display = 'none';
-            document.getElementById('check-btn').style.display = 'none';
-            document.getElementById('approval-buttons').style.display = 'none';
-
             const checkBtn = document.getElementById('check-btn');
             if (data.checkedBy) {
                 const checkedDate = data.checkedAt ? ` on ${toLocalDate(data.checkedAt)}` : '';
@@ -1105,10 +1096,6 @@
                 checkBtn.disabled = true;
                 checkBtn.textContent = 'Checked';
                 document.getElementById('checked-stamp').style.display = 'block';
-            } else {
-                setVal('checked-by', 'Pending Check');
-                checkBtn.disabled = false;
-                checkBtn.textContent = 'Check Job File';
             }
 
             if (data.status === 'approved') {
@@ -1121,31 +1108,17 @@
                 document.getElementById('rejected-stamp').style.display = 'block';
                 document.getElementById('rejection-banner').style.display = 'block';
                 document.getElementById('rejection-reason').textContent = data.rejectionReason;
-            } else {
-                setVal('approved-by', 'Pending Approval');
-            }
-
-            if (currentUser.role === 'admin') {
-                if (data.status !== 'approved' && data.status !== 'rejected') {
-                    document.getElementById('approval-buttons').style.display = 'flex';
-                }
-            }
-            if (['admin', 'checker'].includes(currentUser.role)) {
-                if (!data.checkedBy) {
-                     document.getElementById('check-btn').style.display = 'block';
-                }
             }
 
             setChecked('clearance', data.cl);
             setChecked('product', data.pt);
 
-            populateTable(); // This will create the table structure
-             if (data.ch && data.ch.length > 0) {
-                 const tableBody = document.getElementById('charges-table-body');
-                 tableBody.innerHTML = ''; // Clear empty rows
+            const tableBody = document.getElementById('charges-table-body');
+            tableBody.innerHTML = '';
+            if (data.ch && data.ch.length > 0) {
                  data.ch.forEach(charge => addChargeRow(charge));
-             } else {
-                for(let i=0; i<5; i++) addChargeRow();
+            } else {
+               for(let i=0; i<5; i++) addChargeRow();
             }
             calculate();
         }
@@ -1160,7 +1133,7 @@
             populateTable();
             calculate();
             
-            document.getElementById('prepared-by').value = currentUser.displayName;
+            document.getElementById('prepared-by').value = currentUser ? currentUser.displayName : '';
             
             document.getElementById('created-by-info').textContent = '';
             document.getElementById('last-updated-by-info').textContent = '';
@@ -1169,18 +1142,18 @@
             document.getElementById('checked-by').value = '';
             document.getElementById('check-btn').disabled = false;
             document.getElementById('check-btn').textContent = 'Check Job File';
-            document.getElementById('approve-btn').disabled = false;
-            document.getElementById('reject-btn').disabled = false;
-
+            
             document.getElementById('checked-stamp').style.display = 'none';
             document.getElementById('approved-stamp').style.display = 'none';
             document.getElementById('rejected-stamp').style.display = 'none';
             document.getElementById('rejection-banner').style.display = 'none';
 
-            const isChecker = ['admin', 'checker'].includes(currentUser.role);
-            const isAdmin = currentUser.role === 'admin';
-            document.getElementById('check-btn').style.display = isChecker ? 'block' : 'none';
-            document.getElementById('approval-buttons').style.display = isAdmin ? 'flex' : 'none';
+            if(currentUser) {
+                const isChecker = ['admin', 'checker'].includes(currentUser.role);
+                const isAdmin = currentUser.role === 'admin';
+                document.getElementById('check-btn').style.display = isChecker ? 'block' : 'none';
+                document.getElementById('approval-buttons').style.display = isAdmin ? 'flex' : 'none';
+            }
 
             showNotification("Form cleared. Ready for a new job file.");
         }
@@ -1271,12 +1244,35 @@
         
         function openModal(id) { document.getElementById(id).classList.add('visible'); }
         function closeModal(id) { document.getElementById(id).classList.remove('visible'); }
+        function closeAllModals() {
+            document.querySelectorAll('.overlay').forEach(modal => modal.classList.remove('visible'));
+        }
 
+        function displayJobFiles(files) {
+            // Placeholder for now
+        }
+        function updateStatusSummary(elementId, files) {
+            const container = document.getElementById(elementId);
+            if(!container) return;
+
+            const counts = files.reduce((acc, file) => {
+                acc[file.status] = (acc[file.status] || 0) + 1;
+                return acc;
+            }, { pending: 0, checked: 0, approved: 0, rejected: 0 });
+
+            container.innerHTML = `
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-sm">
+                    <div class="p-2 bg-gray-200 rounded"><strong>Pending:</strong> ${counts.pending || 0}</div>
+                    <div class="p-2 bg-blue-200 rounded"><strong>Checked:</strong> ${counts.checked || 0}</div>
+                    <div class="p-2 bg-green-200 rounded"><strong>Approved:</strong> ${counts.approved || 0}</div>
+                    <div class="p-2 bg-red-200 rounded"><strong>Rejected:</strong> ${counts.rejected || 0}</div>
+                </div>
+            `;
+        }
 
         // --- App Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
             
-            // Check if there's a token and validate it
             checkToken();
 
             document.getElementById('auth-link').addEventListener('click', (e) => {
@@ -1300,25 +1296,24 @@
             });
 
             document.getElementById('logout-btn').addEventListener('click', handleLogout);
+            document.getElementById('admin-panel-btn').addEventListener('click', () => openModal('admin-panel-modal'));
 
-            // Assign all window functions for inline onclicks
-            window.openAnalyticsDashboard = () => showNotification("Not implemented");
+
+            window.openAnalyticsDashboard = () => openModal('analytics-container');
             window.closeAnalyticsDashboard = () => closeModal('analytics-container');
             window.openFileManager = () => openModal('file-manager-modal');
-            window.openClientManager = () => showNotification("Not implemented");
+            window.openClientManager = () => openModal('client-manager-modal');
             window.saveJobFile = saveJobFile;
             window.clearForm = clearForm;
-            window.printPage = () => showNotification("Not implemented");
+            window.printPage = () => window.print();
             window.closeModal = closeModal;
             window.saveUserChanges = () => showNotification("Not implemented");
             window.generateRemarks = () => showNotification("Not implemented");
             window.suggestCharges = () => showNotification("Not implemented");
-            window.backupAllData = backupAllData;
+            window.backupAllData = () => showNotification("Not implemented");
             window.addChargeRow = addChargeRow;
         });
 
     </script>
 </body>
 </html>
-
-    
