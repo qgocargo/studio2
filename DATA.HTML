@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Job File Management System with Database</title>
+    <title>MIGRATION TOOL - Job File Management System</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -19,73 +19,23 @@
             margin: 1rem auto;
             padding: 1rem;
             background-color: white;
-            border-radius: 0.75rem; /* Slightly larger radius */
+            border-radius: 0.75rem; 
             border-top: 5px solid var(--theme-color);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.05); /* Softer shadow */
-        }
-        @media (min-width: 640px) {
-            .container {
-                margin: 2rem auto;
-                padding: 2.5rem; /* More padding on desktop */
-            }
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
         }
         .input-field {
             border: 1px solid #d1d5db;
             border-radius: 0.375rem;
             padding: 0.5rem 0.75rem;
             width: 100%;
-            transition: border-color 0.2s, box-shadow 0.2s;
         }
-        .input-field:focus {
-            outline: none;
-            border-color: var(--theme-color);
-            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.3); /* Improved focus ring */
-        }
-        .input-field:disabled {
-            background-color: #f3f4f6;
-            cursor: not-allowed;
-            color: #6b7280;
-        }
-        .table-cell {
-            border: 1px solid #e5e7eb; /* Lighter border */
-            padding: 0.5rem;
-            position: relative;
-        }
-        @media (min-width: 640px) {
-            .table-cell {
-                padding: 0.75rem;
-            }
-        }
-        .table-cell input {
-            width: 100%;
-            border: none;
-            padding: 0;
-            background-color: transparent;
-        }
-        .table-cell input:focus {
-            outline: none;
-        }
-        
         .overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0, 0, 0, 0.5); display: flex;
             align-items: center; justify-content: center; z-index: 1000;
             opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s;
-            padding: 1rem;
         }
-        .overlay.visible {
-            opacity: 1; visibility: visible;
-        }
-        .modal-content {
-            background: white; padding: 1.5rem; border-radius: 0.5rem;
-            width: 100%;
-            max-width: 600px;
-            max-height: 90vh; overflow-y: auto;
-            transform: scale(0.9); transition: transform 0.3s;
-        }
-        .overlay.visible .modal-content {
-            transform: scale(1);
-        }
+        .overlay.visible { opacity: 1; visibility: visible; }
         .loader {
             border: 4px solid #f3f3f3; border-top: 4px solid var(--theme-color);
             border-radius: 50%; width: 40px; height: 40px;
@@ -101,68 +51,213 @@
             transform: translate(-50%, 100px); opacity: 0;
             transition: transform 0.5s, opacity 0.5s;
             z-index: 2000;
-            text-align: center;
         }
-        #notification.show {
-            transform: translate(-50%, 0); opacity: 1;
-        }
-
-        @page { size: A4; margin: 0.5cm; }
-        @media print {
-            body { background-color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            #main-container, .no-print, #app-container, #login-screen { display: none !important; }
-            #print-output, #public-view-container, #analytics-container { display: block !important; padding: 0 !important; margin: 0 !important; }
-        }
-        #print-output .print-table, #preview-modal .print-table, #analytics-container .analytics-table { border-collapse: collapse; width: 100%; }
-        #print-output .print-table th, #print-output .print-table td,
-        #preview-modal .print-table th, #preview-modal .print-table td,
-        #analytics-container .analytics-table th, #analytics-container .analytics-table td { border: 1px solid #d1d5db; padding: 0.5rem; text-align: left; }
-        #analytics-container .analytics-table th { background-color: #f3f4f6; font-weight: 600; }
-        #print-output .print-field, #preview-modal .print-field { border: 1px solid #6b7280; padding: 0.3rem; min-height: 24px; word-break: break-all; }
-        .admin-only, .checker-only, #signup-name-field { display: none; }
-        
-        .stamp {
-            position: absolute;
-            top: -10px; right: -10px;
-            padding: 4px 12px;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: bold;
-            text-transform: uppercase;
-            transform: rotate(15deg);
-            opacity: 0.8;
-            display: none;
-        }
-        .stamp-approved { border: 2px solid #16a34a; color: #16a34a; }
-        .stamp-checked { border: 2px solid #2563eb; color: #2563eb; }
-        .stamp-rejected { border: 2px solid #dc2626; color: #dc2626; }
-
-        /* Autocomplete styles */
-        .autocomplete-suggestions {
-            border: 1px solid #d1d5db;
-            border-top: none;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            max-height: 150px;
-            overflow-y: auto;
-            position: absolute;
-            background-color: white;
-            z-index: 999;
-            width: 100%;
-        }
-        .autocomplete-suggestion {
-            padding: 0.5rem;
-            cursor: pointer;
-        }
-        .autocomplete-suggestion:hover {
-            background-color: #f3f4f6;
-        }
-        .autocomplete-suggestion.selected {
-            background-color: #e5e7eb;
-        }
+        #notification.show { transform: translate(-50%, 0); opacity: 1; }
     </style>
 </head>
 <body class="bg-gray-100">
-    <!-- THIS FILE IS A BACKUP. PLEASE USE api/index.html -->
+    <div id="loader-overlay" class="overlay"><div class="loader"></div></div>
+    <div id="notification"></div>
+    <div class="container text-center">
+        <img class="mx-auto h-24 w-auto" src="https://qgocargo.com/logo.png" alt="Q'go Cargo Logo">
+        <h1 class="text-2xl font-bold mt-4">One-Time Data Migration Tool</h1>
+        <p class="text-gray-600 mt-2">Use this page ONLY to migrate your old data from Firebase to your new SQL database.</p>
+        
+        <div id="login-view" class="mt-8 max-w-sm mx-auto">
+             <h2 class="text-xl font-semibold">Step 1: Login to Firebase</h2>
+             <div class="mt-4 space-y-4 bg-white p-6 rounded-lg shadow-inner">
+                <input id="email-address" type="email" class="input-field" placeholder="Enter your Firebase email">
+                <input id="password" type="password" class="input-field" placeholder="Enter your Firebase password">
+                <button id="login-btn" class="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded hover:bg-indigo-700">Login to Firebase</button>
+             </div>
+        </div>
+
+        <div id="migration-view" class="hidden mt-8">
+            <p class="text-lg">Logged in as: <strong id="user-display-name"></strong></p>
+            <h2 class="text-xl font-semibold mt-6">Step 2: Generate and Download SQL File</h2>
+            <p class="text-gray-600 mt-2">This will download all your existing job files from Firebase and convert them into a single `migration.sql` file. You can then import this file into your new database using phpMyAdmin.</p>
+            <button id="migrate-btn" class="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg">
+                Generate and Download Migration SQL File
+            </button>
+            <p class="text-sm mt-4 text-gray-500">After downloading, you can close this page. Your live app is at your domain.</p>
+        </div>
+    </div>
+
+    <!-- Firebase SDK and App Logic -->
+    <script type="module">
+        // Import Firebase SDKs
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        let db, auth;
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAAulR2nJQm-4QtNyEqKTnnDPw-iKW92Mc",
+            authDomain: "my-job-file-system.firebaseapp.com",
+            projectId: "my-job-file-system",
+            storageBucket: "my-job-file-system.appspot.com",
+            messagingSenderId: "145307873304",
+            appId: "1:145307873304:web:d661ea6ec118801b4a136d",
+            measurementId: "G-8EHX5K7YHL"
+        };
+        
+        function showLoader() { document.getElementById('loader-overlay').classList.add('visible'); }
+        function hideLoader() { document.getElementById('loader-overlay').classList.remove('visible'); }
+        function showNotification(message, isError = false) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.style.backgroundColor = isError ? '#c53030' : '#2d3748';
+            notification.classList.add('show');
+            setTimeout(() => notification.classList.remove('show'), 3000);
+        }
+
+        async function initializeFirebase() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                 document.getElementById('login-btn').addEventListener('click', async () => {
+                    const email = document.getElementById('email-address').value;
+                    const password = document.getElementById('password').value;
+                    if (!email || !password) {
+                        showNotification("Please enter email and password.", true);
+                        return;
+                    }
+                    showLoader();
+                    try {
+                        await signInWithEmailAndPassword(auth, email, password);
+                    } catch (error) {
+                        showNotification("Firebase login failed: " + error.message, true);
+                    } finally {
+                        hideLoader();
+                    }
+                });
+
+                onAuthStateChanged(auth, (user) => {
+                    if(user) {
+                        document.getElementById('login-view').style.display = 'none';
+                        document.getElementById('migration-view').style.display = 'block';
+                        document.getElementById('user-display-name').textContent = user.displayName || user.email;
+                    }
+                });
+            } catch (error) {
+                console.error("Firebase initialization failed:", error);
+                showNotification("Could not connect to Firebase.", true);
+            }
+        }
+
+        async function generateMigrationSql() {
+            if (!db) {
+                showNotification("Firestore is not initialized.", true);
+                return;
+            }
+            showLoader();
+            try {
+                const jobFilesQuery = collection(db, 'jobfiles');
+                const jobFilesSnapshot = await getDocs(jobFilesQuery);
+                const jobFiles = jobFilesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                if (jobFiles.length === 0) {
+                    showNotification("No job files found in Firebase to migrate.", false);
+                    return;
+                }
+
+                let sqlContent = "START TRANSACTION;\n\n";
+                sqlContent += "-- This will replace all job files in your new database.\n";
+                sqlContent += "TRUNCATE TABLE `job_files`;\n\n";
+
+                const escapeSQL = (val) => {
+                    if (val === null || val === undefined) return 'NULL';
+                    if (typeof val === 'boolean') return val ? '1' : '0';
+                    if (typeof val === 'number') return val;
+                    val = val.toString().replace(/'/g, "''").replace(/\\/g, '\\\\');
+                    return `'${val}'`;
+                };
+                
+                const formatDate = (timestamp) => {
+                    if (!timestamp || typeof timestamp.toDate !== 'function') return 'NULL';
+                    return escapeSQL(timestamp.toDate().toISOString().slice(0, 19).replace('T', ' '));
+                };
+
+                for (const file of jobFiles) {
+                    const values = {
+                        jfn: escapeSQL(file.jfn || file.id.replace(/_/g, '/')), // Use JFN, fallback to ID
+                        d: file.d ? escapeSQL(file.d) : 'NULL',
+                        po: escapeSQL(file.po),
+                        cl: escapeSQL(JSON.stringify(file.cl || [])),
+                        pt: escapeSQL(JSON.stringify(file.pt || [])),
+                        'in': escapeSQL(file.in),
+                        bd: file.bd ? escapeSQL(file.bd) : 'NULL',
+                        sm: escapeSQL(file.sm),
+                        sh: escapeSQL(file.sh),
+                        co: escapeSQL(file.co),
+                        mawb: escapeSQL(file.mawb),
+                        hawb: escapeSQL(file.hawb),
+                        ts: escapeSQL(file.ts),
+                        'or': escapeSQL(file.or),
+                        pc: escapeSQL(file.pc),
+                        gw: escapeSQL(file.gw),
+                        de: escapeSQL(file.de),
+                        vw: escapeSQL(file.vw),
+                        dsc: escapeSQL(file.dsc),
+                        ca: escapeSQL(file.ca),
+                        tn: escapeSQL(file.tn),
+                        vn: escapeSQL(file.vn),
+                        fv: escapeSQL(file.fv),
+                        cn: escapeSQL(file.cn),
+                        ch: escapeSQL(JSON.stringify(file.ch || [])),
+                        re: escapeSQL(file.re),
+                        pb: escapeSQL(file.pb || file.createdBy),
+                        status: escapeSQL(file.status || 'pending'),
+                        createdBy: escapeSQL(file.createdBy),
+                        createdAt: formatDate(file.createdAt),
+                        lastUpdatedBy: escapeSQL(file.lastUpdatedBy),
+                        updatedAt: formatDate(file.updatedAt),
+                        checkedBy: escapeSQL(file.checkedBy),
+                        checkedAt: formatDate(file.checkedAt),
+                        approvedBy: escapeSQL(file.approvedBy),
+                        approvedAt: formatDate(file.approvedAt),
+                        rejectedBy: escapeSQL(file.rejectedBy),
+                        rejectedAt: formatDate(file.rejectedAt),
+                        rejectionReason: escapeSQL(file.rejectionReason),
+                        totalCost: parseFloat(file.totalCost) || 0,
+                        totalSelling: parseFloat(file.totalSelling) || 0,
+                        totalProfit: parseFloat(file.totalProfit) || 0,
+                        is_deleted: 0
+                    };
+
+                    const columns = Object.keys(values).map(c => `\`${c}\``).join(', ');
+                    const rowValues = Object.values(values).join(', ');
+                    sqlContent += `INSERT INTO \`job_files\` (${columns}) VALUES (${rowValues});\n`;
+                }
+
+                sqlContent += "\nCOMMIT;";
+                
+                const blob = new Blob([sqlContent], { type: 'application/sql' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = 'migration.sql';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(link.href);
+
+                showNotification(`Migration file with ${jobFiles.length} records generated successfully!`, false);
+
+            } catch (err) {
+                console.error("Migration failed:", err);
+                showNotification(`Migration failed: ${err.message}`, true);
+            } finally {
+                hideLoader();
+            }
+        }
+        
+        document.getElementById('migrate-btn').addEventListener('click', generateMigrationSql);
+        initializeFirebase();
+
+    </script>
 </body>
 </html>
 
