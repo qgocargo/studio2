@@ -15,7 +15,7 @@ function SubmitButton({ isLogin }: { isLogin: boolean }) {
   const { pending } = useFormStatus();
 
   return (
-    <Button className="w-full" type="submit" aria-disabled={pending}>
+    <Button className="w-full" type="submit" aria-disabled={pending} suppressHydrationWarning>
       {pending ? 'Submitting...' : (isLogin ? 'Sign in' : 'Create an account')}
     </Button>
   );
@@ -106,6 +106,7 @@ export default function LoginPage() {
               type="button"
               onClick={() => setIsLogin(!isLogin)}
               className="font-medium text-indigo-600 hover:text-indigo-500 focus:outline-none"
+              suppressHydrationWarning
             >
               {isLogin ? 'Create a new account' : 'Already have an account? Sign in'}
             </button>
