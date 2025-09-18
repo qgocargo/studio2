@@ -9,9 +9,9 @@ class DB {
 
     // TODO: Replace with your actual database credentials from your hosting provider (e.g., Hostinger)
     private $host = 'localhost'; // Usually 'localhost'
-    private $user = 'db_user';     // CHANGE THIS: Your database username
-    private $pass = 'db_password'; // CHANGE THIS: Your database password
-    private $name = 'db_name';     // CHANGE THIS: Your database name
+    private $user = 'u345343285_akifb';     // CHANGE THIS: Your database username
+    private $pass = 'A1slyq31@'; // CHANGE THIS: Your database password
+    private $name = 'u345343285_akifb';     // CHANGE THIS: Your database name
 
     private function __construct() {
         $this->conn = new mysqli($this->host, $this->user, $this->pass, $this->name);
