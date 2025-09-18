@@ -1,8 +1,8 @@
 
 'use client'
 
-import { useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useState, useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { signIn, signUp } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,8 +23,8 @@ function SubmitButton({ isLogin }: { isLogin: boolean }) {
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
-  const [signInState, signInAction] = useFormState(signIn, { message: null });
-  const [signUpState, signUpAction] = useFormState(signUp, { message: null });
+  const [signInState, signInAction] = useActionState(signIn, { message: null });
+  const [signUpState, signUpAction] = useActionState(signUp, { message: null });
 
   const state = isLogin ? signInState : signUpState;
 

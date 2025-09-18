@@ -22,6 +22,12 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'http',
+        hostname: 'qgocargo.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
 };
