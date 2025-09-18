@@ -29,12 +29,14 @@ function auth_guard() {
         send_json(['message' => 'Token not found.'], 401);
     }
     try {
-        // THE FIX IS HERE: Added the third argument to specify the allowed algorithm.
         $decoded = JWT::decode($jwt, new Key($jwt_key, 'HS256'));
         $userId = $decoded->data->userId;
         $db = DB::getInstance()->getConnection();
         $result = $db->query("SELECT id, displayName, role, status FROM users WHERE id = $userId");
         if ($user = $result->fetch_assoc()) {
+            if ($user['status'] !== 'active') {
+                send_json(['message' => 'User account is not active.'], 403);
+            }
             return $user;
         } else {
             send_json(['message' => 'User from token not found.'], 401);
@@ -87,9 +89,9 @@ if ($method === 'GET' && $action === 'get_all') {
 
     $stmt = $db->prepare("INSERT INTO job_files (jfn, d, po, cl, pt, `in`, bd, sm, sh, co, mawb, hawb, ts, `or`, pc, gw, de, vw, dsc, ca, tn, vn, fv, cn, ch, re, pb, createdBy, lastUpdatedBy, status, totalCost, totalSelling, totalProfit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)");
     
-    $cl_json = json_encode($data['cl']);
-    $pt_json = json_encode($data['pt']);
-    $ch_json = json_encode($data['ch']);
+    $cl_json = json_encode($data['cl'] ?? []);
+    $pt_json = json_encode($data['pt'] ?? []);
+    $ch_json = json_encode($data['ch'] ?? []);
     $createdBy = $user['displayName'];
 
     $stmt->bind_param("sssssssssssssssssssssssssssssdd", 
@@ -116,14 +118,14 @@ if ($method === 'GET' && $action === 'get_all') {
     }
     $data = get_input();
     
-    $stmt = $db->prepare("UPDATE job_files SET d=?, po=?, cl=?, pt=?, `in`=?, bd=?, sm=?, sh=?, co=?, mawb=?, hawb=?, ts=?, `or`=?, pc=?, gw=?, de=?, vw=?, dsc=?, ca=?, tn=?, vn=?, fv=?, cn=?, ch=?, re=?, pb=?, lastUpdatedBy=?, totalCost=?, totalSelling=?, totalProfit=? WHERE jfn=?");
+    $stmt = $db->prepare("UPDATE job_files SET d=?, po=?, cl=?, pt=?, `in`=?, bd=?, sm=?, sh=?, co=?, mawb=?, hawb=?, ts=?, `or`=?, pc=?, gw=?, de=?, vw=?, dsc=?, ca=?, tn=?, vn=?, fv=?, cn=?, ch=?, re=?, pb=?, lastUpdatedBy=?, totalCost=?, totalSelling=?, totalProfit=?, status='pending', checkedBy=NULL, checkedAt=NULL, approvedBy=NULL, approvedAt=NULL, rejectedBy=NULL, rejectedAt=NULL, rejectionReason=NULL WHERE jfn=?");
     
-    $cl_json = json_encode($data['cl']);
-    $pt_json = json_encode($data['pt']);
-    $ch_json = json_encode($data['ch']);
+    $cl_json = json_encode($data['cl'] ?? []);
+    $pt_json = json_encode($data['pt'] ?? []);
+    $ch_json = json_encode($data['ch'] ?? []);
     $lastUpdatedBy = $user['displayName'];
 
-    $stmt->bind_param("ssssssssssssssssssssssssssdds", 
+    $stmt->bind_param("ssssssssssssssssssssssssssddds", 
         $data['d'], $data['po'], $cl_json, $pt_json, $data['in'], 
         $data['bd'], $data['sm'], $data['sh'], $data['co'], $data['mawb'], 
         $data['hawb'], $data['ts'], $data['or'], $data['pc'], $data['gw'], 
@@ -147,7 +149,7 @@ if ($method === 'GET' && $action === 'get_all') {
     
     $checkedBy = $user['displayName'];
     $stmt = $db->prepare("UPDATE job_files SET status='checked', checkedBy=?, checkedAt=NOW() WHERE jfn=?");
-    $stmt->bind_param("ss", $checkedBy, $id);
+    $stmt->bind_param("s", $checkedBy);
     
     if($stmt->execute() && $stmt->affected_rows > 0) {
         $get_stmt = $db->query("SELECT * FROM job_files WHERE jfn = '$id'");
@@ -157,13 +159,27 @@ if ($method === 'GET' && $action === 'get_all') {
         send_json(['message' => 'Could not check file or file not found.'], 404);
     }
 
+} elseif ($method === 'POST' && $action === 'uncheck') {
+    $id = $db->real_escape_string($_GET['id'] ?? '');
+    if (empty($id)) { send_json(['message' => 'File ID is required.'], 400); }
+    if ($user['role'] !== 'admin' && $user['role'] !== 'checker') { send_json(['message' => 'Permission denied.'], 403); }
+
+    $stmt = $db->prepare("UPDATE job_files SET status='pending', checkedBy=NULL, checkedAt=NULL WHERE jfn=?");
+    $stmt->bind_param("s", $id);
+    
+    if($stmt->execute() && $stmt->affected_rows > 0) {
+        send_json(['status' => 'success']);
+    } else {
+        send_json(['message' => 'Could not uncheck file or file not found.'], 404);
+    }
+
 } elseif ($method === 'POST' && $action === 'approve') {
     $id = $db->real_escape_string($_GET['id'] ?? '');
     if (empty($id)) { send_json(['message' => 'File ID is required.'], 400); }
     if ($user['role'] !== 'admin') { send_json(['message' => 'Permission denied.'], 403); }
 
     $approvedBy = $user['displayName'];
-    $stmt = $db->prepare("UPDATE job_files SET status='approved', approvedBy=?, approvedAt=NOW() WHERE jfn=?");
+    $stmt = $db->prepare("UPDATE job_files SET status='approved', approvedBy=?, approvedAt=NOW(), rejectedBy=NULL, rejectedAt=NULL, rejectionReason=NULL WHERE jfn=? AND status='checked'");
     $stmt->bind_param("ss", $approvedBy, $id);
     
     if($stmt->execute() && $stmt->affected_rows > 0) {
@@ -171,10 +187,83 @@ if ($method === 'GET' && $action === 'get_all') {
         $file = $get_stmt->fetch_assoc();
         send_json(['jobFile' => $file]);
     } else {
-        send_json(['message' => 'Could not approve file or file not found.'], 404);
+        send_json(['message' => 'Could not approve file. Ensure it has been checked first.'], 404);
     }
 
+} elseif ($method === 'POST' && $action === 'reject') {
+    $id = $db->real_escape_string($_GET['id'] ?? '');
+    if (empty($id)) { send_json(['message' => 'File ID is required.'], 400); }
+    if ($user['role'] !== 'admin') { send_json(['message' => 'Permission denied.'], 403); }
+    
+    $data = get_input();
+    $reason = $db->real_escape_string($data['reason'] ?? 'No reason provided.');
+    $rejectedBy = $user['displayName'];
+
+    $stmt = $db->prepare("UPDATE job_files SET status='rejected', rejectedBy=?, rejectionReason=?, rejectedAt=NOW() WHERE jfn=?");
+    $stmt->bind_param("sss", $rejectedBy, $reason, $id);
+    
+    if($stmt->execute() && $stmt->affected_rows > 0) {
+        send_json(['status' => 'success']);
+    } else {
+        send_json(['message' => 'Could not reject file or file not found.'], 404);
+    }
+
+} elseif ($method === 'DELETE' && $action === 'recycle') {
+    if ($user['role'] !== 'admin') send_json(['message' => 'Permission denied.'], 403);
+    $id = $db->real_escape_string($_GET['id'] ?? '');
+    if (empty($id)) send_json(['message' => 'File ID is required.'], 400);
+
+    $deletedBy = $user['displayName'];
+    $stmt = $db->prepare("UPDATE job_files SET is_deleted=1, deletedBy=?, deletedAt=NOW() WHERE jfn=?");
+    $stmt->bind_param("s", $deletedBy);
+
+    if ($stmt->execute()) {
+        send_json(['status' => 'success'], 204);
+    } else {
+        send_json(['message' => 'Failed to move file to recycle bin.'], 500);
+    }
+
+} elseif ($method === 'POST' && $action === 'restore') {
+     if ($user['role'] !== 'admin') send_json(['message' => 'Permission denied.'], 403);
+    $id = $db->real_escape_string($_GET['id'] ?? '');
+    if (empty($id)) send_json(['message' => 'File ID is required.'], 400);
+
+    $stmt = $db->prepare("UPDATE job_files SET is_deleted=0, deletedBy=NULL, deletedAt=NULL WHERE jfn=?");
+    $stmt->bind_param("s", $id);
+
+    if ($stmt->execute()) {
+        send_json(['status' => 'success']);
+    } else {
+        send_json(['message' => 'Failed to restore file.'], 500);
+    }
+
+} elseif ($method === 'DELETE' && $action === 'permanent') {
+    if ($user['role'] !== 'admin') send_json(['message' => 'Permission denied.'], 403);
+    $id = $db->real_escape_string($_GET['id'] ?? '');
+    if (empty($id)) send_json(['message' => 'File ID is required.'], 400);
+
+    $stmt = $db->prepare("DELETE FROM job_files WHERE jfn=? AND is_deleted=1");
+    $stmt->bind_param("s", $id);
+
+    if ($stmt->execute()) {
+        send_json(['status' => 'success'], 204);
+    } else {
+        send_json(['message' => 'Failed to permanently delete file.'], 500);
+    }
+} elseif ($method === 'GET' && $action === 'get_recycled') {
+    if ($user['role'] !== 'admin') send_json(['message' => 'Permission denied.'], 403);
+    
+    $result = $db->query("SELECT * FROM job_files WHERE is_deleted = 1 ORDER BY deletedAt DESC");
+    $files = [];
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $files[] = $row;
+        }
+    }
+    send_json(['recycledFiles' => $files]);
+
 } else {
-    send_json(['message' => 'Invalid action or request method.'], 400);
+    send_json(['message' => 'Invalid action or request method for job files.'], 400);
 }
 ?>
+    

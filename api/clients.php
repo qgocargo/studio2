@@ -5,7 +5,6 @@ require_once 'vendor/autoload.php';
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 
-
 // --- Helper Functions ---
 function send_json($data, $statusCode = 200) {
     http_response_code($statusCode);
@@ -35,6 +34,9 @@ function auth_guard() {
         $db = DB::getInstance()->getConnection();
         $result = $db->query("SELECT id, displayName, role, status FROM users WHERE id = $userId");
         if ($user = $result->fetch_assoc()) {
+             if ($user['status'] !== 'active') {
+                send_json(['message' => 'User account is not active.'], 403);
+            }
             return $user;
         } else {
             send_json(['message' => 'User from token not found.'], 401);
@@ -47,24 +49,69 @@ function auth_guard() {
 // --- Main Logic ---
 $user = auth_guard();
 $db = DB::getInstance()->getConnection();
-$action = $_GET['action'] ?? '';
+$method = $_SERVER['REQUEST_METHOD'];
 
-switch ($action) {
-    case 'get_all':
-        $result = $db->query("SELECT * FROM clients ORDER BY name ASC");
-        $clients = [];
-        if ($result) {
-            while ($row = $result->fetch_assoc()) {
-                $clients[] = $row;
-            }
+if ($method === 'GET') {
+    $result = $db->query("SELECT * FROM clients ORDER BY name ASC");
+    $clients = [];
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $clients[] = $row;
         }
-        send_json(['clients' => $clients]);
-        break;
-    
-    // Implement create, update, delete actions for clients
+    }
+    send_json(['clients' => $clients]);
 
-    default:
-        send_json(['message' => 'Invalid action for clients.'], 400);
-        break;
+} elseif ($method === 'POST') {
+    $data = get_input();
+    $name = $db->real_escape_string($data['name']);
+    if (empty($name)) send_json(['message' => 'Client name is required.'], 400);
+
+    $stmt = $db->prepare("INSERT INTO clients (name, address, contactPerson, phone, type) VALUES (?, ?, ?, ?, ?)");
+    $stmt->bind_param("sssss", $name, $data['address'], $data['contactPerson'], $data['phone'], $data['type']);
+    
+    if ($stmt->execute()) {
+        $newId = $db->insert_id;
+        $result = $db->query("SELECT * FROM clients WHERE id = $newId");
+        send_json(['client' => $result->fetch_assoc()], 201);
+    } else {
+        send_json(['message' => 'Failed to create client.'], 500);
+    }
+
+} elseif ($method === 'PUT') {
+    $id = $_GET['id'] ?? '';
+    if (empty($id)) send_json(['message' => 'Client ID is required.'], 400);
+    
+    $data = get_input();
+    $name = $db->real_escape_string($data['name']);
+    if (empty($name)) send_json(['message' => 'Client name is required.'], 400);
+
+    $stmt = $db->prepare("UPDATE clients SET name=?, address=?, contactPerson=?, phone=?, type=? WHERE id=?");
+    $stmt->bind_param("sssssi", $name, $data['address'], $data['contactPerson'], $data['phone'], $data['type'], $id);
+
+    if ($stmt->execute()) {
+        $result = $db->query("SELECT * FROM clients WHERE id = $id");
+        send_json(['client' => $result->fetch_assoc()]);
+    } else {
+        send_json(['message' => 'Failed to update client.'], 500);
+    }
+
+} elseif ($method === 'DELETE') {
+    if ($user['role'] !== 'admin') send_json(['message' => 'Permission denied.'], 403);
+    
+    $id = $_GET['id'] ?? '';
+    if (empty($id)) send_json(['message' => 'Client ID is required.'], 400);
+
+    $stmt = $db->prepare("DELETE FROM clients WHERE id=?");
+    $stmt->bind_param("i", $id);
+
+    if ($stmt->execute()) {
+        send_json(null, 204);
+    } else {
+        send_json(['message' => 'Failed to delete client.'], 500);
+    }
+
+} else {
+    send_json(['message' => 'Invalid request method.'], 405);
 }
 ?>
+    

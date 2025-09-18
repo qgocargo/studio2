@@ -12,6 +12,11 @@ function send_json($data, $statusCode = 200) {
     exit;
 }
 
+function get_input() {
+    return json_decode(file_get_contents('php://input'), true);
+}
+
+
 function auth_guard() {
     $jwt_key = 'QgoCargoApiSecretKey@2024!_S$uper_S#ecure';
     $headers = getallheaders();
@@ -29,6 +34,9 @@ function auth_guard() {
         $db = DB::getInstance()->getConnection();
         $result = $db->query("SELECT id, displayName, role, status FROM users WHERE id = $userId");
         if ($user = $result->fetch_assoc()) {
+            if ($user['status'] !== 'active') {
+                send_json(['message' => 'User account is not active.'], 403);
+            }
             return $user;
         } else {
             send_json(['message' => 'User from token not found.'], 401);
@@ -41,28 +49,48 @@ function auth_guard() {
 // --- Main Logic ---
 $user = auth_guard();
 if ($user['role'] !== 'admin') {
-    send_json(['message' => 'Access denied.'], 403);
+    send_json(['message' => 'Access denied. Admin role required.'], 403);
 }
 
 $db = DB::getInstance()->getConnection();
-$action = $_GET['action'] ?? '';
+$method = $_SERVER['REQUEST_METHOD'];
 
-switch($action) {
-    case 'get_all':
-        $result = $db->query("SELECT id, email, displayName, role, status FROM users");
-        $users = [];
-        if ($result) {
-            while($row = $result->fetch_assoc()){
-                $users[] = $row;
-            }
+if ($method === 'GET') {
+    $result = $db->query("SELECT id, email, displayName, role, status FROM users ORDER BY displayName");
+    $users = [];
+    if ($result) {
+        while($row = $result->fetch_assoc()){
+            $users[] = $row;
         }
-        send_json(['users' => $users]);
-        break;
-    
-    // Implement update_batch action for users
+    }
+    send_json(['users' => $users]);
 
-    default:
-        send_json(['message' => 'Invalid action for users.'], 400);
-        break;
+} elseif ($method === 'PUT') {
+    $data = get_input();
+    if (!isset($data['users']) || !is_array($data['users'])) {
+        send_json(['message' => 'Invalid data format. Expected an array of users.'], 400);
+    }
+    
+    $db->begin_transaction();
+    try {
+        $stmt = $db->prepare("UPDATE users SET displayName=?, role=?, status=? WHERE id=?");
+        foreach ($data['users'] as $userData) {
+            // Prevent admin from de-activating or changing their own role
+            if ($userData['id'] == $user['id']) {
+                $userData['role'] = 'admin';
+                $userData['status'] = 'active';
+            }
+            $stmt->bind_param("sssi", $userData['displayName'], $userData['role'], $userData['status'], $userData['id']);
+            $stmt->execute();
+        }
+        $db->commit();
+        send_json(['status' => 'success']);
+    } catch (Exception $e) {
+        $db->rollback();
+        send_json(['message' => 'Failed to update users: ' . $e->getMessage()], 500);
+    }
+} else {
+    send_json(['message' => 'Invalid request method for users.'], 405);
 }
 ?>
+    
