@@ -21,7 +21,7 @@ function get_input() {
 // --- Main Logic ---
 $db = DB::getInstance()->getConnection();
 $action = $_GET['action'] ?? '';
-$jwt_key = 'YOUR_SUPER_SECRET_JWT_KEY'; // TODO: Change this and keep it secret
+$jwt_key = 'QgoCargoApiSecretKey@2024!_S$uper_S#ecure'; // Secure key has been set.
 
 switch ($action) {
     case 'login':

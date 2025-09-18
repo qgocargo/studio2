@@ -5,7 +5,7 @@ use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 
 function get_current_user() {
-    $jwt_key = 'YOUR_SUPER_SECRET_JWT_KEY'; // TODO: Same key as in auth.php
+    $jwt_key = 'QgoCargoApiSecretKey@2024!_S$uper_S#ecure'; // Secure key has been set.
     $headers = getallheaders();
     
     if (!isset($headers['Authorization'])) {
