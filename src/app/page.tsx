@@ -4,20 +4,50 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { PanelLeft, Home, Folder, Users, LineChart, LogOut } from "lucide-react";
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/firebase/firebase";
 import { signOut } from "@/lib/actions";
+import { cookies } from 'next/headers';
+import Link from "next/link";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+
+async function getUser() {
+  const cookieStore = cookies();
+  const sessionCookie = cookieStore.get('__session');
+
+  if (!sessionCookie) {
+    return null;
+  }
+  
+  // In a real app, you would verify the session cookie with the server (e.g., Firebase Admin SDK)
+  // and fetch user details from your database.
+  // For this prototype, we'll assume the cookie value is the user's UID and return a mock user.
+  const user = {
+    uid: sessionCookie.value,
+    displayName: 'Akif Boss', // Replace with actual data fetch later
+    role: 'admin' // Replace with actual data fetch later
+  }
+
+  return user;
+}
 
 
 export default async function HomePage() {
-  const user = auth.currentUser;
+  const user = await getUser();
 
-  // This is a temporary check. In a real app, you'd use server-side sessions
-  // or a more robust authentication check. For now, if there's no user object,
-  // we assume they are not logged in.
-  // Note: This check only works on server-side rendering.
-  // We will need a more robust solution with middleware for client-side navigation.
   if (!user) {
-    // redirect("/login");
+    redirect("/login");
+  }
+
+  // Mock data for status summary. We will fetch this from Firestore later.
+  const statusSummary = {
+    approved: 125,
+    rejected: 12,
+    checked: 45,
+    pending: 30
   }
 
 
@@ -25,53 +55,55 @@ export default async function HomePage() {
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
       <aside className="fixed inset-y-0 left-0 z-10 hidden w-60 flex-col border-r bg-background sm:flex">
         <nav className="flex flex-col items-center gap-4 px-2 sm:py-5">
-          <a
+          <Link
             href="#"
             className="group flex h-9 w-9 shrink-0 items-center justify-center gap-2 rounded-full bg-primary text-lg font-semibold text-primary-foreground md:h-8 md:w-8 md:text-base"
           >
             <Logo className="h-4 w-4 transition-all group-hover:scale-110" />
             <span className="sr-only">Job File System</span>
-          </a>
-          <a
+          </Link>
+          <Link
             href="#"
             className="flex items-center gap-3 rounded-lg bg-muted px-3 py-2 text-primary transition-all hover:text-primary"
             title="Dashboard"
           >
             <Home className="h-4 w-4" />
             <span>Dashboard</span>
-          </a>
-          <a
+          </Link>
+          <Link
             href="#"
             className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
             title="Files"
           >
             <Folder className="h-4 w-4" />
             <span>File Manager</span>
-          </a>
-          <a
-            href="#"
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-            title="Users"
-          >
-            <Users className="h-4 w-4" />
-            <span>Users</span>
-          </a>
-           <a
+          </Link>
+          <Link
             href="#"
             className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
             title="Clients"
           >
             <Users className="h-4 w-4" />
             <span>Clients</span>
-          </a>
-          <a
+          </Link>
+          <Link
             href="#"
             className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
             title="Analytics"
           >
             <LineChart className="h-4 w-4" />
             <span>Analytics</span>
-          </a>
+          </Link>
+           {user.role === 'admin' && (
+             <Link
+              href="#"
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+              title="Admin Panel"
+            >
+              <Users className="h-4 w-4" />
+              <span>Admin Panel</span>
+            </Link>
+          )}
         </nav>
         <nav className="mt-auto flex flex-col items-center gap-4 px-2 sm:py-5">
            <form action={signOut}>
@@ -93,75 +125,127 @@ export default async function HomePage() {
             </SheetTrigger>
             <SheetContent side="left" className="sm:max-w-xs">
               <nav className="grid gap-6 text-lg font-medium">
-                <a
+                <Link
                   href="#"
                   className="group flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full bg-primary text-lg font-semibold text-primary-foreground md:text-base"
                 >
                   <Logo className="h-5 w-5 transition-all group-hover:scale-110" />
                   <span className="sr-only">Job File System</span>
-                </a>
-                 <a
+                </Link>
+                 <Link
                   href="#"
-                  className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
+                  className="flex items-center gap-4 px-2.5 text-foreground"
                 >
                   <Home className="h-5 w-5" />
                   Dashboard
-                </a>
-                <a
+                </Link>
+                <Link
                   href="#"
                   className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
                 >
                   <Folder className="h-5 w-5" />
                   File Manager
-                </a>
-                <a
-                  href="#"
-                  className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
-                >
-                  <Users className="h-5 w-5" />
-                  Users
-                </a>
-                 <a
+                </Link>
+                <Link
                   href="#"
                   className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
                 >
                   <Users className="h-5 w-5" />
                   Clients
-                </a>
-                <a
+                </Link>
+                <Link
                   href="#"
                   className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
                 >
                   <LineChart className="h-5 w-5" />
                   Analytics
-                </a>
-                 <a
-                  href="#"
-                  className="mt-auto flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
-                >
-                  <LogOut className="h-5 w-5" />
-                  Logout
-                </a>
+                </Link>
+                 {user.role === 'admin' && (
+                  <Link
+                    href="#"
+                    className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
+                  >
+                    <Users className="h-5 w-5" />
+                    Admin Panel
+                  </Link>
+                )}
+                 <form action={signOut} className="mt-auto">
+                    <button type="submit" className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground" title="Logout">
+                      <LogOut className="h-5 w-5" />
+                      Logout
+                    </button>
+                  </form>
               </nav>
             </SheetContent>
           </Sheet>
-           <div className="relative ml-auto flex-1 md:grow-0">
+           <div className="flex-1">
              <h1 className="text-xl font-semibold">Dashboard</h1>
+          </div>
+          <div className="flex items-center gap-4">
+              <div className="text-sm text-right">
+                    Logged in as: <span className="font-bold">{user.displayName}</span> (<span className="capitalize">{user.role}</span>)
+              </div>
+              {user.role === 'admin' && (
+                <>
+                  <Button variant="outline" size="sm">Activity Log</Button>
+                </>
+              )}
           </div>
         </header>
         <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
-          <div className="grid auto-rows-max items-start gap-4 md:gap-8 lg:col-span-2">
-            <div className="flex items-center justify-center rounded-lg border border-dashed shadow-sm h-[80vh]">
+            <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
+              <Card className="bg-green-100 border-green-200">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-green-900">
+                    Approved
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-900">{statusSummary.approved}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-red-100 border-red-200">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-red-900">
+                    Rejected
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-red-900">{statusSummary.rejected}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-blue-100 border-blue-200">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-blue-900">
+                    Checked
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-blue-900">{statusSummary.checked}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-yellow-100 border-yellow-200">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-yellow-900">
+                    Pending
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-yellow-900">{statusSummary.pending}</div>
+                </CardContent>
+              </Card>
+            </div>
+             <div className="flex items-center justify-center rounded-lg border border-dashed shadow-sm h-[60vh]">
               <div className="flex flex-col items-center gap-1 text-center">
                 <h3 className="text-2xl font-bold tracking-tight">
-                  Welcome to your new app!
+                  Job File Form
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  The great migration from a single HTML file to Next.js components has begun.
+                  This is where the main job file form will go. We will build this next.
                 </p>
+                <Button className="mt-4">New Job File</Button>
               </div>
             </div>
-          </div>
         </main>
       </div>
     </div>
