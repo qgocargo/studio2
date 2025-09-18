@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle } from 'lucide-react';
 import Image from 'next/image';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+
 
 function SubmitButton({ isLogin }: { isLogin: boolean }) {
   const { pending } = useFormStatus();
@@ -30,89 +32,88 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-           <Image 
-                src="http://qgocargo.com/logo.png" 
-                alt="Q'go Cargo Logo" 
-                width={96} 
-                height={96} 
-                className="mx-auto h-24 w-auto"
-            />
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            {isLogin ? 'Sign in to your account' : 'Create a new account'}
-          </h2>
-        </div>
-        <form className="mt-8 space-y-6" action={isLogin ? signInAction : signUpAction}>
-            <div className="rounded-md shadow-sm -space-y-px">
-                {!isLogin && (
-                    <div>
-                        <Label htmlFor="full-name" className="sr-only">Full Name</Label>
-                        <Input
-                        id="full-name"
-                        name="name"
-                        type="text"
-                        autoComplete="name"
-                        required
-                        className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                        placeholder="Full Name"
-                        suppressHydrationWarning
-                        />
+        <Card className="max-w-md w-full">
+             <CardHeader className="text-center">
+                 <Image 
+                    src="http://qgocargo.com/logo.png" 
+                    alt="Q'go Cargo Logo" 
+                    width={150} 
+                    height={60} 
+                    className="mx-auto mb-4"
+                />
+                <h2 className="text-2xl font-bold text-gray-900">
+                    {isLogin ? 'Sign in to your account' : 'Create a new account'}
+                </h2>
+            </CardHeader>
+            <CardContent>
+                <form className="space-y-6" action={isLogin ? signInAction : signUpAction}>
+                    <div className="space-y-4">
+                        {!isLogin && (
+                            <div>
+                                <Label htmlFor="full-name" className="sr-only">Full Name</Label>
+                                <Input
+                                id="full-name"
+                                name="name"
+                                type="text"
+                                autoComplete="name"
+                                required
+                                placeholder="Full Name"
+                                suppressHydrationWarning
+                                />
+                            </div>
+                        )}
+                        <div>
+                            <Label htmlFor="email-address" className="sr-only">Email address</Label>
+                            <Input
+                            id="email-address"
+                            name="email"
+                            type="email"
+                            autoComplete="email"
+                            required
+                            placeholder="Email address"
+                            suppressHydrationWarning
+                            />
+                        </div>
+                        <div>
+                            <Label htmlFor="password" className="sr-only">Password</Label>
+                            <Input
+                            id="password"
+                            name="password"
+                            type="password"
+                            autoComplete="current-password"
+                            required
+                            placeholder="Password"
+                            suppressHydrationWarning
+                            />
+                        </div>
                     </div>
-                )}
-                <div>
-                    <Label htmlFor="email-address" className="sr-only">Email address</Label>
-                    <Input
-                    id="email-address"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    className={`appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 ${isLogin ? 'rounded-t-md' : ''} focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
-                    placeholder="Email address"
-                    suppressHydrationWarning
-                    />
-                </div>
-                <div>
-                    <Label htmlFor="password" className="sr-only">Password</Label>
-                    <Input
-                    id="password"
-                    name="password"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                    placeholder="Password"
-                    suppressHydrationWarning
-                    />
-                </div>
-            </div>
 
-            {state?.message && (
-                 <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Authentication Error</AlertTitle>
-                    <AlertDescription>
-                        {state.message}
-                    </AlertDescription>
-                </Alert>
-            )}
+                    {state?.message && (
+                        <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertTitle>Authentication Error</AlertTitle>
+                            <AlertDescription>
+                                {state.message}
+                            </AlertDescription>
+                        </Alert>
+                    )}
 
-          <div>
-            <SubmitButton isLogin={isLogin} />
-          </div>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            <button
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="font-medium text-indigo-600 hover:text-indigo-500 focus:outline-none"
-              suppressHydrationWarning
-            >
-              {isLogin ? 'Create a new account' : 'Already have an account? Sign in'}
-            </button>
-          </p>
-        </form>
-      </div>
+                    <div>
+                        <SubmitButton isLogin={isLogin} />
+                    </div>
+                </form>
+                 <p className="mt-6 text-center text-sm text-gray-600">
+                    <button
+                    type="button"
+                    onClick={() => setIsLogin(!isLogin)}
+                    className="font-medium text-primary hover:text-primary/90 focus:outline-none"
+                    suppressHydrationWarning
+                    >
+                    {isLogin ? 'Create a new account' : 'Already have an account? Sign in'}
+                    </button>
+                </p>
+            </CardContent>
+        </Card>
     </div>
   );
 }
