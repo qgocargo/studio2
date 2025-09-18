@@ -1,5 +1,4 @@
-
-      <?php
+<?php
 // This would be a new file to reuse the authentication logic
 require_once 'vendor/autoload.php';
 use Firebase\JWT\JWT;
@@ -44,4 +43,3 @@ function get_current_user() {
     }
 }
 ?>
-    

@@ -1,5 +1,4 @@
-
-      <?php
+<?php
 require_once 'db.php';
 require_once 'auth-helper.php';
 
@@ -38,4 +37,3 @@ switch($action) {
         break;
 }
 ?>
-    

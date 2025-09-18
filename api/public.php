@@ -1,5 +1,4 @@
-
-      <?php
+<?php
 require_once 'db.php';
 
 function send_json($data, $statusCode = 200) {
@@ -25,4 +24,3 @@ if ($result && $file = $result->fetch_assoc()) {
     send_json(['message' => 'Job file not found.'], 404);
 }
 ?>
-    

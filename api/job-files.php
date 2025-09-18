@@ -1,5 +1,4 @@
-
-      <?php
+<?php
 require_once 'db.php';
 require_once 'auth-helper.php'; // A new file to keep JWT validation logic
 
@@ -69,4 +68,3 @@ switch ($action) {
         break;
 }
 ?>
-    

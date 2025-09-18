@@ -1,5 +1,4 @@
-
-      <?php
+<?php
 require_once 'db.php';
 // You will need a JWT library, e.g., firebase/php-jwt
 // Run `composer require firebase/php-jwt` in your `api` directory
@@ -64,4 +63,3 @@ switch ($action) {
         break;
 }
 ?>
-    
