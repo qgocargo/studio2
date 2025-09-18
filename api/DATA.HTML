@@ -516,18 +516,16 @@
         
             <!-- Data Backup & Restore -->
             <div class="border rounded-lg p-4 mt-6">
-                <h4 class="text-lg font-semibold mb-3">Data Backup & Restore</h4>
-                <p class="text-sm text-gray-600 mb-4">Backup all job files and user data to a single JSON file. This can be used for offline storage or to restore the database to a previous state.</p>
+                <h4 class="text-lg font-semibold mb-3">Generate Migration SQL File</h4>
+                <p class="text-sm text-gray-600 mb-4">
+                    This is a <b>one-time tool</b> to migrate your data from Firebase to your new SQL database.
+                    Click the button below to download a `migration.sql` file. You can then import this file into your new database using a tool like phpMyAdmin.
+                </p>
                 <div class="flex flex-col sm:flex-row gap-4">
                     <button onclick="backupAllData()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded flex items-center justify-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
-                        Backup All Data
+                        Generate Migration SQL File
                     </button>
-                    <label for="restore-file-input" class="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded flex items-center justify-center gap-2 cursor-pointer">
-                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
-                         Restore From File
-                         <input type="file" id="restore-file-input" class="hidden" accept=".json" onchange="handleRestoreFile(event)">
-                    </label>
                 </div>
             </div>
         </div>
@@ -1917,50 +1915,60 @@
 
         async function backupAllData() {
             if (currentUser.role !== 'admin') {
-                showNotification("Access denied. Only admins can perform backups.", true);
+                showNotification("Access denied. Only admins can perform this action.", true);
                 return;
             }
             showLoader();
             try {
                 const jobFilesQuery = query(collection(db, 'jobfiles'));
-                const usersQuery = query(collection(db, 'users'));
-
                 const jobFilesSnapshot = await getDocs(jobFilesQuery);
-                const usersSnapshot = await getDocs(usersQuery);
-
                 const jobfilesData = jobFilesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-                const backupData = {
-                    version: "1.0",
-                    createdAt: new Date().toISOString(),
-                    data: {
-                        jobfiles: jobfilesData,
-                        users: usersData
-                    }
+                const escapeSql = (val) => {
+                    if (val === null || val === undefined) return 'NULL';
+                    if (typeof val === 'number') return val;
+                    val = String(val).replace(/'/g, "''");
+                    return `'${val}'`;
                 };
 
-                const jsonString = JSON.stringify(backupData, (key, value) => {
-                    if (value && typeof value.toDate === 'function') {
-                        return value.toDate().toISOString();
-                    }
-                    return value;
-                }, 2);
+                let sqlContent = "START TRANSACTION;\n\n";
+                sqlContent += "DROP TABLE IF EXISTS `job_files`;\n";
+                sqlContent += `
+CREATE TABLE \`job_files\` (
+  \`id\` varchar(255) NOT NULL,
+  \`data\` json NOT NULL,
+  PRIMARY KEY (\`id\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+\n\n`;
 
-                const blob = new Blob([jsonString], { type: 'application/json' });
+                jobfilesData.forEach(jobFile => {
+                    const { id, ...data } = jobFile;
+                     // Convert Firestore Timestamps to ISO strings
+                    const serializableData = JSON.parse(JSON.stringify(data, (key, value) => {
+                        if (value && value.seconds !== undefined) {
+                            return new Date(value.seconds * 1000).toISOString();
+                        }
+                        return value;
+                    }));
+                    const jsonData = JSON.stringify(serializableData);
+                    sqlContent += `INSERT INTO \`job_files\` (\`id\`, \`data\`) VALUES (${escapeSql(id)}, ${escapeSql(jsonData)});\n`;
+                });
+                
+                sqlContent += "\nCOMMIT;\n";
+
+                const blob = new Blob([sqlContent], { type: 'application/sql' });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
-                const date = new Date().toISOString().slice(0, 10);
-                link.download = `qgo-cargo-backup-${date}.json`;
+                link.download = `migration.sql`;
                 link.href = url;
                 link.click();
                 URL.revokeObjectURL(url);
 
-                showNotification("Backup created and download started successfully.");
+                showNotification("Migration SQL file generated and download started.");
 
             } catch (error) {
-                console.error("Backup failed:", error);
-                showNotification("An error occurred during backup.", true);
+                console.error("Migration file generation failed:", error);
+                showNotification("An error occurred during SQL file generation.", true);
             } finally {
                 hideLoader();
             }
