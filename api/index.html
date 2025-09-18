@@ -167,7 +167,7 @@
     <div id="login-screen" class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
         <div class="max-w-md w-full space-y-8">
             <div>
-                <img class="mx-auto h-24 w-auto" src="http://qgocargo.com/logo.png" alt="Q'go Cargo Logo">
+                <img class="mx-auto h-24 w-auto" src="https://qgocargo.com/logo.png" alt="Q'go Cargo Logo">
                 <h2 id="auth-title" class="mt-6 text-center text-3xl font-extrabold text-gray-900">Sign in to your account</h2>
             </div>
             <div class="mt-8 space-y-6 bg-white p-8 rounded-lg shadow-md">
@@ -216,7 +216,7 @@
             <!-- Header Section -->
             <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                 <div class="flex items-center">
-                    <img id="logo-container" class="h-16 w-auto mr-4" src="http://qgocargo.com/logo.png" alt="Q'go Cargo Logo">
+                    <img id="logo-container" class="h-16 w-auto mr-4" src="https://qgocargo.com/logo.png" alt="Q'go Cargo Logo">
                     <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 border-l-4 border-gray-300 pl-4">JOB FILE</h1>
                 </div>
                 <div class="text-right w-full sm:w-auto">
@@ -697,7 +697,6 @@
     </div>
 
 
-    <!-- PHP Backend Logic -->
     <script>
         // --- Global variables ---
         let currentUser = null;
@@ -708,6 +707,7 @@
         let currentFilteredJobs = [];
         let fileIdToReject = null; 
         let profitChartInstance = null;
+        let isLoginView = true;
         const API_BASE_URL = './'; // Since index.html is in the same folder as PHP files
 
         // --- API Helper ---
@@ -724,11 +724,19 @@
 
                 const response = await fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers });
 
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ message: response.statusText }));
-                    throw new Error(errorData.message || 'An unknown API error occurred.');
+                if (response.status === 204) { // No Content
+                    return null;
                 }
-                return response.json();
+
+                const responseData = await response.json().catch(() => {
+                    // If JSON parsing fails, maybe the response was empty or not JSON
+                    return { message: response.statusText };
+                });
+
+                if (!response.ok) {
+                    throw new Error(responseData.message || 'An unknown API error occurred.');
+                }
+                return responseData;
             } catch (error) {
                 console.error(`API Error on ${endpoint}:`, error);
                 showNotification(error.message, true);
@@ -741,12 +749,14 @@
         async function handleSignUp(email, password, displayName) {
             showLoader();
             try {
-                await fetchAPI('auth.php?action=register', {
+                const data = await fetchAPI('auth.php?action=register', {
                     method: 'POST',
                     body: JSON.stringify({ email, password, displayName })
                 });
-                showNotification("Account created! Please wait for admin approval.", false);
-                toggleAuthView(true);
+                showNotification(data.message || "Account created! Please wait for admin approval.", false);
+                toggleAuthView(true); // Switch to login view
+            } catch (e) {
+                // error is already shown by fetchAPI
             } finally {
                 hideLoader();
             }
@@ -763,6 +773,8 @@
                     localStorage.setItem('authToken', data.token);
                     setCurrentUser(data.user);
                 }
+            } catch(e) {
+                // error is already shown by fetchAPI
             } finally {
                 hideLoader();
             }
@@ -797,6 +809,8 @@
         function handleLogout() {
             currentUser = null;
             localStorage.removeItem('authToken');
+            jobFilesCache = [];
+            clientsCache = [];
             showLogin();
         }
 
@@ -818,6 +832,22 @@
                 }
             }
         }
+        
+        // --- DATA.HTML Backup/Migration Function
+        function escapeSql(value) {
+            if (value === null || typeof value === 'undefined') {
+                return 'NULL';
+            }
+            if (typeof value === 'number') {
+                return value;
+            }
+            return "'" + String(value).replace(/'/g, "''") + "'";
+        }
+
+        async function backupAllData() {
+            showNotification("Please login to the old Firebase system to generate the migration file.", true);
+            alert("This function is for migrating data from the old Firebase system. Please open the old 'DATA.html' file, log in, and use the 'Generate SQL Migration File' button there.");
+        }
 
 
         // --- Data Handling ---
@@ -837,14 +867,15 @@
 
             showLoader();
             try {
-                const endpoint = isUpdating ? `job-files.php?action=update&id=${jobFileNo}` : 'job-files.php?action=create';
+                const endpoint = isUpdating ? `job-files.php?action=update&id=${encodeURIComponent(jobFileNo)}` : 'job-files.php?action=create';
                 const method = isUpdating ? 'PUT' : 'POST';
                 const result = await fetchAPI(endpoint, { method, body: JSON.stringify(data) });
                 
-                hideLoader();
                 showNotification("Job file saved successfully!");
                 loadJobFileById(result.jobFile.jfn);
             } catch(e) {
+                // error handled in fetchAPI
+            } finally {
                 hideLoader();
             }
         }
@@ -856,15 +887,16 @@
             }
              showLoader();
             try {
-                const result = await fetchAPI(`job-files.php?action=check&id=${fileId}`, { method: 'POST' });
+                const result = await fetchAPI(`job-files.php?action=check&id=${encodeURIComponent(fileId)}`, { method: 'POST' });
                 if (!docId) {
                     populateFormFromData(result.jobFile);
                 } else {
                     refreshOpenModals();
                 }
-                hideLoader();
                 showNotification("Job File Checked!");
             } catch(e) {
+                 // error handled in fetchAPI
+            } finally {
                 hideLoader();
             }
         }
@@ -876,54 +908,348 @@
             }
              showLoader();
             try {
-                const result = await fetchAPI(`job-files.php?action=approve&id=${fileId}`, { method: 'POST' });
+                const result = await fetchAPI(`job-files.php?action=approve&id=${encodeURIComponent(fileId)}`, { method: 'POST' });
                 if (!docId) {
                     populateFormFromData(result.jobFile);
                 } else {
                     refreshOpenModals();
                 }
-                hideLoader();
                 showNotification("Job File Approved!");
             } catch(e) {
+                // error handled in fetchAPI
+            } finally {
                 hideLoader();
             }
         }
         
-        // --- Other functions (loadJobFiles, populateForm, etc.) need to be converted to use fetchAPI ---
-        // This is a placeholder for the full conversion
         async function loadJobFiles() {
             try {
                 const data = await fetchAPI('job-files.php?action=get_all');
-                jobFilesCache = data.jobFiles;
+                jobFilesCache = data.jobFiles.map(file => ({
+                    ...file,
+                    ch: JSON.parse(file.ch || '[]'),
+                    cl: JSON.parse(file.cl || '[]'),
+                    pt: JSON.parse(file.pt || '[]')
+                }));
                 displayJobFiles(jobFilesCache);
                 updateStatusSummary('status-summary-main', jobFilesCache);
             } catch(e) {
-                // error is already shown by fetchAPI
+                jobFilesCache = [];
+                displayJobFiles([]);
+                updateStatusSummary('status-summary-main', []);
             }
         }
 
         async function loadJobFileById(docId) {
              showLoader();
             try {
-                const data = await fetchAPI(`job-files.php?action=get&id=${docId}`);
-                populateFormFromData(data.jobFile);
-                logUserActivity(data.jobFile.jfn);
+                const data = await fetchAPI(`job-files.php?action=get&id=${encodeURIComponent(docId)}`);
+                const file = {
+                    ...data.jobFile,
+                    ch: JSON.parse(data.jobFile.ch || '[]'),
+                    cl: JSON.parse(data.jobFile.cl || '[]'),
+                    pt: JSON.parse(data.jobFile.pt || '[]')
+                }
+                populateFormFromData(file);
+                logUserActivity(file.jfn);
                 document.getElementById('job-file-no').disabled = true;
                 closeAllModals();
                 showNotification("Job file loaded successfully.");
+            } catch(e) {
+                // error handled in fetchAPI
             } finally {
                 hideLoader();
             }
         }
-
-        async function loadClients() {
-            try {
-                const data = await fetchAPI('clients.php?action=get_all');
-                clientsCache = data.clients;
-                clientsCache.sort((a, b) => a.name.localeCompare(b.name));
-                displayClients(clientsCache);
-            } catch(e) { /* error handled in fetchAPI */ }
+        
+        // --- UI Functions (Mostly unchanged) ---
+        function showLogin() {
+            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('app-container').style.display = 'none';
+            document.getElementById('analytics-container').style.display = 'none';
         }
+
+        function showApp() {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app-container').style.display = 'block';
+            document.getElementById('analytics-container').style.display = 'none';
+            document.getElementById('user-display-name').textContent = currentUser.displayName;
+            document.getElementById('user-role').textContent = currentUser.role;
+
+            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.checker-only').forEach(el => el.style.display = 'none');
+            
+            if (currentUser.role === 'admin') {
+                document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+                document.querySelectorAll('.checker-only').forEach(el => el.style.display = 'block');
+                document.getElementById('checker-info-banner').style.display = 'block';
+            } else if (currentUser.role === 'checker') {
+                document.querySelectorAll('.checker-only').forEach(el => el.style.display = 'block');
+                document.getElementById('checker-info-banner').style.display = 'block';
+            }
+            
+            clearForm();
+        }
+
+        function toggleAuthView(showLogin) {
+            isLoginView = showLogin;
+            const nameField = document.getElementById('signup-name-field');
+            const emailField = document.getElementById('email-address');
+            
+            document.getElementById('auth-title').textContent = showLogin ? 'Sign in to your account' : 'Create a new account';
+            document.getElementById('auth-btn').textContent = showLogin ? 'Sign in' : 'Sign up';
+            document.getElementById('auth-link').textContent = showLogin ? 'Create a new account' : 'Already have an account? Sign in';
+            nameField.style.display = showLogin ? 'none' : 'block';
+            emailField.classList.toggle('rounded-t-md', !showLogin);
+            document.getElementById('approval-message').style.display = 'none';
+            document.getElementById('blocked-message').style.display = 'none';
+        }
+        
+        function getFormData() {
+            const getVal = id => document.getElementById(id).value || '';
+            const getChecked = query => Array.from(document.querySelectorAll(query)).filter(el => el.checked).map(el => el.dataset.clearance || el.dataset.product);
+
+            const charges = [];
+            document.querySelectorAll('#charges-table-body tr:not(#total-row)').forEach(row => {
+                const description = row.querySelector('.description-input').value.trim();
+                const cost = row.querySelector('.cost-input').value;
+                const selling = row.querySelector('.selling-input').value;
+
+                if (description && (cost || selling)) {
+                    charges.push({
+                        l: description,
+                        c: cost || '0',
+                        s: selling || '0',
+                        n: row.querySelector('.notes-input').value || ''
+                    });
+                }
+            });
+
+            return {
+                d: getVal('date'), po: getVal('po-number'), jfn: getVal('job-file-no'),
+                cl: getChecked('[data-clearance]:checked'), pt: getChecked('[data-product]:checked'),
+                in: getVal('invoice-no'), bd: getVal('billing-date'), sm: getVal('salesman'),
+                sh: getVal('shipper-name'), co: getVal('consignee-name'),
+                mawb: getVal('mawb'), hawb: getVal('hawb'), ts: getVal('teams-of-shipping'), or: getVal('origin'),
+                pc: getVal('no-of-pieces'), gw: getVal('gross-weight'), de: getVal('destination'), vw: getVal('volume-weight'),
+                dsc: getVal('description'), ca: getVal('carrier'), tn: getVal('truck-no'),
+                vn: getVal('vessel-name'), fv: getVal('flight-voyage-no'), cn: getVal('container-no'),
+                ch: charges,
+                re: getVal('remarks'),
+                pb: getVal('prepared-by'),
+            };
+        }
+        
+        function populateFormFromData(data) {
+            const setVal = (id, value) => { if (document.getElementById(id)) document.getElementById(id).value = value || ''; };
+            const setChecked = (type, values) => {
+                document.querySelectorAll(`[data-${type}]`).forEach(el => {
+                    el.checked = (values || []).includes(el.dataset[type]);
+                });
+            };
+
+            setVal('date', data.d); setVal('po-number', data.po); setVal('job-file-no', data.jfn);
+            setVal('invoice-no', data.in); setVal('billing-date', data.bd);
+            setVal('salesman', data.sm); setVal('shipper-name', data.sh); setVal('consignee-name', data.co);
+            setVal('mawb', data.mawb); setVal('hawb', data.hawb); setVal('teams-of-shipping', data.ts);
+            setVal('origin', data.or); setVal('no-of-pieces', data.pc); setVal('gross-weight', data.gw);
+            setVal('destination', data.de); setVal('volume-weight', data.vw); setVal('description', data.dsc);
+            setVal('carrier', data.ca); setVal('truck-no', data.tn); setVal('vessel-name', data.vn);
+            setVal('flight-voyage-no', data.fv); setVal('container-no', data.cn);
+            setVal('remarks', data.re); 
+            
+            setVal('prepared-by', data.pb || data.createdBy || '');
+
+            const createdInfo = document.getElementById('created-by-info');
+            const updatedInfo = document.getElementById('last-updated-by-info');
+            
+            const toLocalDate = (dateString) => dateString ? new Date(dateString.replace(' ', 'T') + 'Z').toLocaleDateString() : '';
+            const toLocalDateTime = (dateString) => dateString ? new Date(dateString.replace(' ', 'T') + 'Z').toLocaleString() : '';
+
+            createdInfo.textContent = data.createdBy ? `Created by: ${data.createdBy} on ${toLocalDate(data.createdAt)}` : '';
+            updatedInfo.textContent = data.lastUpdatedBy ? `Last updated by: ${data.lastUpdatedBy} on ${toLocalDateTime(data.updatedAt)}` : '';
+            
+            document.getElementById('checked-stamp').style.display = 'none';
+            document.getElementById('approved-stamp').style.display = 'none';
+            document.getElementById('rejected-stamp').style.display = 'none';
+            document.getElementById('rejection-banner').style.display = 'none';
+            document.getElementById('check-btn').style.display = 'none';
+            document.getElementById('approval-buttons').style.display = 'none';
+
+            const checkBtn = document.getElementById('check-btn');
+            if (data.checkedBy) {
+                const checkedDate = data.checkedAt ? ` on ${toLocalDate(data.checkedAt)}` : '';
+                setVal('checked-by', `${data.checkedBy}${checkedDate}`);
+                checkBtn.disabled = true;
+                checkBtn.textContent = 'Checked';
+                document.getElementById('checked-stamp').style.display = 'block';
+            } else {
+                setVal('checked-by', 'Pending Check');
+                checkBtn.disabled = false;
+                checkBtn.textContent = 'Check Job File';
+            }
+
+            if (data.status === 'approved') {
+                const approvedDate = data.approvedAt ? ` on ${toLocalDate(data.approvedAt)}` : '';
+                setVal('approved-by', `${data.approvedBy}${approvedDate}`);
+                document.getElementById('approved-stamp').style.display = 'block';
+            } else if (data.status === 'rejected') {
+                const rejectedDate = data.rejectedAt ? ` on ${toLocalDate(data.rejectedAt)}` : '';
+                setVal('approved-by', `Rejected by ${data.rejectedBy}${rejectedDate}`);
+                document.getElementById('rejected-stamp').style.display = 'block';
+                document.getElementById('rejection-banner').style.display = 'block';
+                document.getElementById('rejection-reason').textContent = data.rejectionReason;
+            } else {
+                setVal('approved-by', 'Pending Approval');
+            }
+
+            if (currentUser.role === 'admin') {
+                if (data.status !== 'approved' && data.status !== 'rejected') {
+                    document.getElementById('approval-buttons').style.display = 'flex';
+                }
+            }
+            if (['admin', 'checker'].includes(currentUser.role)) {
+                if (!data.checkedBy) {
+                     document.getElementById('check-btn').style.display = 'block';
+                }
+            }
+
+            setChecked('clearance', data.cl);
+            setChecked('product', data.pt);
+
+            populateTable(); // This will create the table structure
+             if (data.ch && data.ch.length > 0) {
+                 const tableBody = document.getElementById('charges-table-body');
+                 tableBody.innerHTML = ''; // Clear empty rows
+                 data.ch.forEach(charge => addChargeRow(charge));
+             } else {
+                for(let i=0; i<5; i++) addChargeRow();
+            }
+            calculate();
+        }
+
+        function clearForm() {
+            const form = document.querySelector('#main-container');
+            form.querySelectorAll('input[type="text"], input[type="date"], textarea').forEach(input => input.value = '');
+            form.querySelectorAll('input[type="checkbox"]').forEach(checkbox => checkbox.checked = false);
+            
+            document.getElementById('date').valueAsDate = new Date();
+            document.getElementById('job-file-no').disabled = false;
+            populateTable();
+            calculate();
+            
+            document.getElementById('prepared-by').value = currentUser.displayName;
+            
+            document.getElementById('created-by-info').textContent = '';
+            document.getElementById('last-updated-by-info').textContent = '';
+
+            document.getElementById('approved-by').value = '';
+            document.getElementById('checked-by').value = '';
+            document.getElementById('check-btn').disabled = false;
+            document.getElementById('check-btn').textContent = 'Check Job File';
+            document.getElementById('approve-btn').disabled = false;
+            document.getElementById('reject-btn').disabled = false;
+
+            document.getElementById('checked-stamp').style.display = 'none';
+            document.getElementById('approved-stamp').style.display = 'none';
+            document.getElementById('rejected-stamp').style.display = 'none';
+            document.getElementById('rejection-banner').style.display = 'none';
+
+            const isChecker = ['admin', 'checker'].includes(currentUser.role);
+            const isAdmin = currentUser.role === 'admin';
+            document.getElementById('check-btn').style.display = isChecker ? 'block' : 'none';
+            document.getElementById('approval-buttons').style.display = isAdmin ? 'flex' : 'none';
+
+            showNotification("Form cleared. Ready for a new job file.");
+        }
+        
+        function showLoader() { document.getElementById('loader-overlay').classList.add('visible'); }
+        function hideLoader() { document.getElementById('loader-overlay').classList.remove('visible'); }
+
+        function showNotification(message, isError = false) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.style.backgroundColor = isError ? '#c53030' : '#2d3748';
+            notification.classList.add('show');
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        function populateTable() {
+            const table = document.getElementById('charges-table');
+            table.innerHTML = `
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="table-cell font-semibold w-2/5">Description</th>
+                        <th class="table-cell font-semibold">Cost</th>
+                        <th class="table-cell font-semibold">Selling</th>
+                        <th class="table-cell font-semibold">Profit</th>
+                        <th class="table-cell font-semibold">Notes</th>
+                         <th class="table-cell font-semibold"></th>
+                    </tr>
+                </thead>
+                <tbody id="charges-table-body">
+                </tbody>
+                <tfoot>
+                     <tr id="total-row" class="bg-gray-100 font-bold">
+                        <td class="table-cell text-right">TOTAL:</td>
+                        <td id="total-cost" class="table-cell text-right">0.000</td>
+                        <td id="total-selling" class="table-cell text-right">0.000</td>
+                        <td id="total-profit" class="table-cell text-right">0.000</td>
+                        <td class="table-cell" colspan="2"></td>
+                    </tr>
+                </tfoot>
+            `;
+
+            const tableBody = document.getElementById('charges-table-body');
+            tableBody.addEventListener('input', e => {
+                if (e.target.classList.contains('cost-input') || e.target.classList.contains('selling-input')) {
+                    calculate();
+                }
+            });
+             for(let i=0; i<5; i++) addChargeRow();
+        }
+
+        function addChargeRow(data = {}) {
+            const tableBody = document.getElementById('charges-table-body');
+            const newRow = document.createElement('tr');
+
+            newRow.innerHTML = `
+                <td class="table-cell"><input type="text" class="description-input input-field" value="${data.l || ''}" autocomplete="off"></td>
+                <td class="table-cell"><input type="number" step="0.001" class="cost-input input-field" value="${data.c || ''}"></td>
+                <td class="table-cell"><input type="number" step="0.001" class="selling-input input-field" value="${data.s || ''}"></td>
+                <td class="table-cell profit-output bg-gray-50 text-right">${((data.s || 0) - (data.c || 0)).toFixed(3)}</td>
+                <td class="table-cell"><input type="text" class="notes-input input-field" value="${data.n || ''}"></td>
+                <td class="table-cell text-center"><button class="text-red-500 hover:text-red-700">&times;</button></td>
+            `;
+
+            const deleteButton = newRow.querySelector('button');
+            deleteButton.addEventListener('click', () => {
+                newRow.remove();
+                calculate();
+            });
+
+            tableBody.appendChild(newRow);
+        }
+
+        function calculate() {
+            let totalCost = 0, totalSelling = 0, totalProfit = 0;
+            document.querySelectorAll('#charges-table-body tr:not(#total-row)').forEach(row => {
+                const cost = parseFloat(row.querySelector('.cost-input').value) || 0;
+                const selling = parseFloat(row.querySelector('.selling-input').value) || 0;
+                const profit = selling - cost;
+                row.cells[3].textContent = profit.toFixed(3);
+                totalCost += cost; totalSelling += selling; totalProfit += profit;
+            });
+            document.getElementById('total-cost').textContent = totalCost.toFixed(3);
+            document.getElementById('total-selling').textContent = totalSelling.toFixed(3);
+            document.getElementById('total-profit').textContent = totalProfit.toFixed(3);
+        }
+        
+        function openModal(id) { document.getElementById(id).classList.add('visible'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('visible'); }
+
 
         // --- App Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
@@ -931,18 +1257,15 @@
             // Check if there's a token and validate it
             checkToken();
 
-            let isLogin = true;
-
             document.getElementById('auth-link').addEventListener('click', (e) => {
                 e.preventDefault();
-                isLogin = !isLogin;
-                toggleAuthView(isLogin);
+                toggleAuthView(!isLoginView);
             });
 
             document.getElementById('auth-btn').addEventListener('click', () => {
                 const email = document.getElementById('email-address').value;
                 const password = document.getElementById('password').value;
-                if (isLogin) {
+                if (isLoginView) {
                     handleLogin(email, password);
                 } else {
                     const displayName = document.getElementById('full-name').value;
@@ -954,38 +1277,26 @@
                 }
             });
 
-            // The rest of the event listeners remain largely the same for now.
-            // But their actions will call the new async PHP-backend functions.
-            
             document.getElementById('logout-btn').addEventListener('click', handleLogout);
-            document.getElementById('approve-btn').addEventListener('click', () => approveJobFile());
-            document.getElementById('check-btn').addEventListener('click', () => checkJobFile());
-            
-            // ... (rest of the initializations)
+
+            // Assign all window functions for inline onclicks
+            window.openAnalyticsDashboard = () => showNotification("Not implemented");
+            window.closeAnalyticsDashboard = () => closeModal('analytics-container');
+            window.openFileManager = () => openModal('file-manager-modal');
+            window.openClientManager = () => showNotification("Not implemented");
+            window.saveJobFile = saveJobFile;
+            window.clearForm = clearForm;
+            window.printPage = () => showNotification("Not implemented");
+            window.closeModal = closeModal;
+            window.saveUserChanges = () => showNotification("Not implemented");
+            window.generateRemarks = () => showNotification("Not implemented");
+            window.suggestCharges = () => showNotification("Not implemented");
+            window.backupAllData = backupAllData;
+            window.addChargeRow = addChargeRow;
         });
-
-        // NOTE: Many functions like `saveClient`, `deleteClient`, `saveUserChanges`, `rejectJobFile`, etc.
-        // need to be rewritten to use the `fetchAPI` helper. The above is a starting point.
-        // The original Firebase-specific functions need to be fully replaced.
-        
-        // --- Original UI and helper functions (no backend calls) can remain as they are ---
-        // (showLoader, hideLoader, openModal, closeModal, calculate, getFormData, etc.)
-
-        // Keep the original UI functions for now to avoid breaking the interface
-        const originalInitialize = async () => {
-            // This is a placeholder to prevent breaking the UI functions that might
-            // still be called. The new logic is in the 'DOMContentLoaded' listener.
-        };
-
-        // --- All the original UI functions from the Firebase version ---
-        // These will be wired up to the PHP backend calls
-        // ... (The large block of original functions would go here)
-        // I will omit them for brevity, but they need to be reviewed and updated
-        // to call `fetchAPI` instead of `doc`, `setDoc`, `getDocs`, etc.
-        
-        // This is a simplified version, a full migration is a large task.
-        // For now, I've set up the core auth and data loading.
 
     </script>
 </body>
 </html>
+
+    

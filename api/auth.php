@@ -35,12 +35,13 @@ switch ($_SERVER['REQUEST_METHOD']) {
             $result = $db->query("SELECT * FROM users WHERE email = '$email'");
             if ($result && $user = $result->fetch_assoc()) {
                 if (password_verify($password, $user['password_hash'])) {
-                    unset($user['password_hash']);
+                    // Password is correct, create JWT
+                    unset($user['password_hash']); // Don't send hash to client
                     $payload = [
                         'iss' => "qgo_cargo_app", // Issuer
                         'aud' => "qgo_cargo_app", // Audience
                         'iat' => time(), // Issued at
-                        'exp' => time() + (60*60*24), // Expiration time (1 day)
+                        'exp' => time() + (60*60*24*7), // Expiration time (7 days)
                         'data' => ['userId' => $user['id']]
                     ];
                     $jwt = JWT::encode($payload, $jwt_key, 'HS256');
@@ -78,7 +79,7 @@ switch ($_SERVER['REQUEST_METHOD']) {
             $stmt->bind_param("sssss", $email, $displayName, $password_hash, $role, $status);
 
             if ($stmt->execute()) {
-                send_json(['message' => 'Registration successful. Please wait for admin approval.'], 201);
+                send_json(['message' => 'Registration successful. You can now log in.'], 201);
             } else {
                 send_json(['message' => 'Registration failed: ' . $db->error], 500);
             }
@@ -101,3 +102,4 @@ switch ($_SERVER['REQUEST_METHOD']) {
         break;
 }
 ?>
+    
