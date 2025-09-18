@@ -2,17 +2,19 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
  
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const sessionCookie = request.cookies.get('__session');
   const { pathname } = request.nextUrl
  
-  // If the user is trying to access the login page but is already logged in,
+  // If the user is trying to access the login page but has a valid session,
   // redirect them to the dashboard.
   if (sessionCookie && pathname === '/login') {
+     // Here you might want to verify the cookie with Firebase Admin SDK if needed
+     // For now, we'll assume if the cookie exists, it's valid.
     return NextResponse.redirect(new URL('/', request.url))
   }
  
-  // If the user is trying to access any other page but is not logged in,
+  // If the user is trying to access a protected page but is not logged in,
   // redirect them to the login page.
   if (!sessionCookie && pathname !== '/login') {
     return NextResponse.redirect(new URL('/login', request.url))

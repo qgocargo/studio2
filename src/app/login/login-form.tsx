@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
-import { auth } from '@/lib/firebase/firebase'; // Import the single auth instance
+import { auth } from '@/lib/firebase/firebase'; 
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -53,12 +53,15 @@ export function LoginForm() {
           password
         );
         await updateProfile(userCredential.user, { displayName: name });
+        // Also set the role for new user if needed, via a server action or firestore trigger
       }
 
-      // If login/signup is successful, create a session via server action
-      await createSession(userCredential.user.uid);
-      // The redirect will happen on the server side within createSession.
-      // router.push('/'); // This is now handled by the server action
+      // If login/signup is successful, get the ID token and create a session cookie.
+      const idToken = await userCredential.user.getIdToken();
+      await createSession(idToken);
+      
+      // The server action `createSession` will handle the redirect.
+      // No need for router.push('/') here.
 
     } catch (error: any) {
       console.error('Firebase Auth Error:', error);

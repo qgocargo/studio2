@@ -3,26 +3,28 @@
 
 import { redirect } from "next/navigation";
 import { cookies } from 'next/headers';
+import { getAuth } from 'firebase-admin/auth';
+import { initAdminApp } from './firebase/firebase-admin';
 
-const SESSION_COOKIE_NAME = "__session";
+// This function is now used to create a session cookie after client-side login.
+export async function createSession(idToken: string) {
+  await initAdminApp();
+  
+  const expiresIn = 60 * 60 * 24 * 5 * 1000; // 5 days
+  const sessionCookie = await getAuth().createSessionCookie(idToken, { expiresIn });
 
-// This function is now only used on the client-side after a successful login.
-// We will call this via a server action from the client.
-export async function createSession(uid: string) {
-  cookies().set(SESSION_COOKIE_NAME, uid, {
+  cookies().set("__session", sessionCookie, {
+    maxAge: expiresIn,
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 60 * 60 * 24, // 1 day
     path: '/',
   });
   
-  // After setting the cookie, we need to redirect.
-  // Since this is a server action, we can call redirect here.
   redirect("/");
 }
 
 
 export async function signOut() {
-  cookies().delete(SESSION_COOKIE_NAME);
+  cookies().delete("__session");
   redirect('/login');
 }

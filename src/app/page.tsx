@@ -14,77 +14,47 @@ import {
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getAuth } from "firebase-admin/auth";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { db } from "@/lib/firebase/firebase";
-import { collection, getDocs, getDoc, doc } from "firebase/firestore";
-import { JobFileForm } from "./job-file-form";
-import { Toaster } from "@/components/ui/toaster";
+import { initAdminApp } from "@/lib/firebase/firebase-admin";
+import Dashboard from "./dashboard";
 
 
-async function getDashboardData() {
+async function getUser() {
   const cookieStore = cookies();
   const sessionCookie = cookieStore.get("__session");
 
   if (!sessionCookie) {
-    return { user: null, statusSummary: null };
+    return null;
   }
-  
-  const uid = sessionCookie.value;
-  let user = null;
-  let statusSummary = {
-    approved: 0,
-    rejected: 0,
-    checked: 0,
-    pending: 0,
-  };
+
+  await initAdminApp();
 
   try {
-     // Fetch user data
-    const userDocRef = doc(db, "users", uid);
-    const userDoc = await getDoc(userDocRef);
+    const decodedClaims = await getAuth().verifySessionCookie(sessionCookie.value, true);
+    const userDoc = await getAuth().getUser(decodedClaims.uid);
 
-    if (userDoc.exists()) {
-      user = {
-        uid,
-        displayName: userDoc.data().displayName || 'No Name',
-        role: userDoc.data().role || 'user',
-      };
-    } else {
-       // If user doc doesn't exist, create a mock one but log the issue
-      console.warn(`User document not found for UID: ${uid}. Using default values.`);
-      user = { uid, displayName: "New User", role: "user" };
-    }
-
-    // Fetch job files to calculate status summary
-    const jobfilesCollection = collection(db, "jobfiles");
-    const jobfilesSnapshot = await getDocs(jobfilesCollection);
-    
-    jobfilesSnapshot.forEach((jobfileDoc) => {
-      const status = jobfileDoc.data().status?.toLowerCase();
-      if (status && status in statusSummary) {
-        statusSummary[status as keyof typeof statusSummary]++;
-      }
-    });
-
+    return {
+      uid: decodedClaims.uid,
+      displayName: userDoc.displayName || 'No Name',
+      role: (userDoc.customClaims?.role as string) || 'user',
+    };
   } catch (error) {
-    console.error("Error fetching dashboard data:", error);
-    // Return default/empty values in case of error, but keep user logged in if they have a cookie
-    if (!user && uid) {
-      user = { uid, displayName: "Error Loading User", role: "user" };
-    }
+    console.error("Error verifying session cookie:", error);
+    // If cookie is invalid, redirect to login, but clear the cookie first.
+    // The redirect will be caught by the middleware, but it's good practice.
+    cookies().delete("__session");
+    return null;
   }
-
-
-  return { user, statusSummary };
 }
 
 export default async function HomePage() {
-  const { user, statusSummary } = await getDashboardData();
+  const user = await getUser();
 
   if (!user) {
     redirect("/login");
@@ -244,59 +214,8 @@ export default async function HomePage() {
           </div>
         </header>
         <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
-          <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
-            <Card className="bg-green-100 border-green-200">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-green-900">
-                  Approved
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-900">
-                  {statusSummary?.approved}
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-red-100 border-red-200">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-red-900">
-                  Rejected
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-900">
-                  {statusSummary?.rejected}
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-blue-100 border-blue-200">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-blue-900">
-                  Checked
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-blue-900">
-                  {statusSummary?.checked}
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-yellow-100 border-yellow-200">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-yellow-900">
-                  Pending
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-yellow-900">
-                  {statusSummary?.pending}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-          <JobFileForm user={user} />
+           <Dashboard user={user} />
         </main>
-        <Toaster />
       </div>
     </div>
   );
