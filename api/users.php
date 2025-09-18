@@ -93,4 +93,3 @@ if ($method === 'GET') {
     send_json(['message' => 'Invalid request method for users.'], 405);
 }
 ?>
-    

@@ -82,7 +82,7 @@ if ($method === 'GET' && $action === 'get_all') {
         send_json(['message' => 'Job File No. cannot be empty.'], 400);
     }
     // Check for duplicates
-    $checkResult = $db->query("SELECT jfn FROM job_files WHERE jfn = '$jfn'");
+    $checkResult = $db->query("SELECT jfn FROM job_files WHERE jfn = '$jfn' AND is_deleted = 0");
     if ($checkResult && $checkResult->num_rows > 0) {
         send_json(['message' => "Job File No. '$jfn' already exists."], 409);
     }
@@ -149,7 +149,7 @@ if ($method === 'GET' && $action === 'get_all') {
     
     $checkedBy = $user['displayName'];
     $stmt = $db->prepare("UPDATE job_files SET status='checked', checkedBy=?, checkedAt=NOW() WHERE jfn=?");
-    $stmt->bind_param("s", $checkedBy);
+    $stmt->bind_param("ss", $checkedBy, $id);
     
     if($stmt->execute() && $stmt->affected_rows > 0) {
         $get_stmt = $db->query("SELECT * FROM job_files WHERE jfn = '$id'");
@@ -266,4 +266,3 @@ if ($method === 'GET' && $action === 'get_all') {
     send_json(['message' => 'Invalid action or request method for job files.'], 400);
 }
 ?>
-    

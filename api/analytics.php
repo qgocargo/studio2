@@ -132,4 +132,3 @@ try {
     send_json(['message' => 'Failed to fetch analytics data: ' . $e->getMessage()], 500);
 }
 ?>
-    

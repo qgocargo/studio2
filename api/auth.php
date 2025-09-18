@@ -43,6 +43,8 @@ function get_current_user_from_token() {
         }
         return null;
     } catch (Exception $e) {
+        // Log error instead of returning null for better debugging if needed
+        error_log("JWT Decode Error: " . $e->getMessage());
         return null;
     }
 }
