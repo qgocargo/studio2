@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import {
   Card,
   CardContent,
@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { JobFileForm } from "./job-file-form";
+import { JobFilesTable } from './job-files-table';
 
 interface User {
     uid: string;
@@ -30,8 +31,20 @@ interface StatusSummary {
     [key: string]: number; // Index signature
 }
 
+export interface JobFile {
+    id: string;
+    jobFileNo: string;
+    shipperName: string;
+    consigneeName: string;
+    status: 'approved' | 'rejected' | 'checked' | 'pending';
+    date: string;
+    [key: string]: any;
+}
+
+
 export default function Dashboard({ user }: DashboardProps) {
     const [statusSummary, setStatusSummary] = useState<StatusSummary | null>(null);
+    const [jobFiles, setJobFiles] = useState<JobFile[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -49,14 +62,20 @@ export default function Dashboard({ user }: DashboardProps) {
                     pending: 0,
                 };
 
-                jobfilesSnapshot.forEach((jobfileDoc) => {
-                    const status = jobfileDoc.data().status?.toLowerCase();
+                const files: JobFile[] = [];
+
+                jobfilesSnapshot.forEach((jobfileDoc: QueryDocumentSnapshot<DocumentData>) => {
+                    const data = jobfileDoc.data();
+                    const status = data.status?.toLowerCase();
                     if (status && status in summary) {
                         summary[status]++;
                     }
+                    files.push({ id: jobfileDoc.id, ...data } as JobFile);
                 });
 
                 setStatusSummary(summary);
+                setJobFiles(files);
+
             } catch (err: any) {
                 console.error("Error fetching dashboard data:", err);
                 setError("Could not load dashboard data. " + err.message);
@@ -77,7 +96,7 @@ export default function Dashboard({ user }: DashboardProps) {
     }
 
     return (
-        <>
+        <div className="space-y-8">
             <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
                 <Card className="bg-green-100 border-green-200">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -128,8 +147,10 @@ export default function Dashboard({ user }: DashboardProps) {
                 </CardContent>
                 </Card>
             </div>
+            
+            <JobFilesTable files={jobFiles} />
+
             <JobFileForm user={user} />
-        </>
+        </div>
     );
 }
-
